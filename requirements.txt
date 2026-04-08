@@ -1,0 +1,24 @@
+docling>=1.0.0          # Parser avançado para tabelas e layouts complexos [cite: 29]
+pymupdf>=1.23.0         # Fallback rápido para extração de texto (fitz) [cite: 30]
+pytesseract>=0.3.10     # OCR para documentos escaneados [cite: 31]
+
+langgraph>=0.0.26       # Controle de fluxo do agente (máquina de estados) 
+llama-index>=0.10.0     # Abstrações base para RAG e indexação 
+langsmith>=0.1.0        # Tracing e debug da pipeline (opcional/recomendado) [cite: 25, 81]
+
+anthropic>=0.18.0       # API do Claude (Sonnet) para o gerador e reformulação [cite: 25, 77]
+sentence-transformers>=2.3.1 # Para rodar o multilingual-e5-large localmente [cite: 25, 81]
+transformers>=4.37.0    # Necessário para o cross-encoder/ms-marco (Reranker) [cite: 46]
+# torch>=2.2.0            # Backend para os modelos do HuggingFace
+
+qdrant-client>=1.7.0    # Cliente Python para comunicação com o Qdrant [cite: 56]
+rank_bm25>=0.2.2        # Implementação em Python do algoritmo BM25 (busca lexical) [cite: 42]
+
+fastapi>=0.109.0        # Framework web assíncrono 
+uvicorn[standard]>=0.27.0 # Servidor ASGI para rodar a FastAPI [cite: 83]
+python-dotenv>=1.0.1    # Para carregar variáveis de ambiente (ANTHROPIC_API_KEY, etc.) [cite: 80, 81]
+
+streamlit>=1.31.0       # UI mínima para demonstração (Fase 6) [cite: 58]
+
+ragas>=0.1.0            # Framework de avaliação (Context Precision, Faithfulness, etc.) [cite: 25, 63]
+pytest>=8.0.0           # Framework para rodar testes automatizados na CI

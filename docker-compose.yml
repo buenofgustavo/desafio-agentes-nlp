@@ -1,0 +1,17 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant_setor_eletrico
+    ports:
+      - "6333:6333" # Porta principal da API REST (usada pelo LangChain/LlamaIndex)
+      - "6334:6334" # Porta para gRPC (usada para alta performance em bulk insert)
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+    #   - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY} # Descomente se quiser forçar autenticação localmente
+
+volumes:
+  qdrant_data:
+    name: qdrant_storage

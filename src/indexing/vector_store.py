@@ -1,0 +1,1 @@
+"""Coleção criada no Qdrant"""

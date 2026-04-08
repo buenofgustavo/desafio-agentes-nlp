@@ -1,0 +1,1 @@
+"""Responsável pela geração de chunks a partir dos documentos extraídos"""
