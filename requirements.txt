@@ -9,7 +9,7 @@ langsmith>=0.1.0        # Tracing e debug da pipeline (opcional/recomendado) [ci
 anthropic>=0.18.0       # API do Claude (Sonnet) para o gerador e reformulação [cite: 25, 77]
 sentence-transformers>=2.3.1 # Para rodar o multilingual-e5-large localmente [cite: 25, 81]
 transformers>=4.37.0    # Necessário para o cross-encoder/ms-marco (Reranker) [cite: 46]
-torch>=2.2.0            # Backend para os modelos do HuggingFace
+# torch>=2.2.0            # Backend para os modelos do HuggingFace
 
 qdrant-client>=1.7.0    # Cliente Python para comunicação com o Qdrant [cite: 56]
 rank_bm25>=0.2.2        # Implementação em Python do algoritmo BM25 (busca lexical) [cite: 42]
