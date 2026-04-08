@@ -1,3 +1,6 @@
+"""Responsável por orquestrar o processo de ingestão dos documentos, desde a extração do texto até a geração dos chunks e embeddings."""
+
+
 from src.settings import DOCUMENTS_DIR
 from src.ingestion.parsing import load_documents
 

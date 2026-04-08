@@ -1,0 +1,1 @@
+"""Responsável pela geração dos Embeddings"""

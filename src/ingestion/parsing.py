@@ -1,3 +1,5 @@
+"""Responsável pela extração de texto de documentos"""
+
 from pdf2image import convert_from_path
 import pytesseract
 from pathlib import Path
