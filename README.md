@@ -50,7 +50,20 @@ Baseie-se no arquivo de exemplo para criar o seu arquivo de ambiente e adicione 
 cp .env.example .env
 ```
 
-### 4. Subir os Containers (Banco Vetorial Qdrant)
+### 4. Baixar o Dataset
+
+Para baixar os dados necessários para o projeto e extraí-los na pasta correta (`data/raw`), execute:
+
+```bash
+# Via Make
+make dataset
+```
+```bash
+# Chamada direta via Python
+python3 -m scripts.download_dataset
+```
+
+### 5. Subir os Containers (Banco Vetorial Qdrant)
 
 O sistema de busca semântica depende do Qdrant. Para subir os containers na sua máquina de forma simples, execute:
 

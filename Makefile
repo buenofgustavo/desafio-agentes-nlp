@@ -9,6 +9,7 @@ help:
 	@echo "  make install  - Instala as dependências do projeto"
 	@echo "  make up       - Sobe o banco de dados (Qdrant) via Docker"
 	@echo "  make down     - Para e remove os containers do Docker"
+	@echo "  make dataset  - Baixa e extrai o dataset necessário para o projeto"
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -19,3 +20,6 @@ up:
 
 down:
 	$(DOCKER) down
+
+dataset:
+	$(PYTHON) -m scripts.download_dataset

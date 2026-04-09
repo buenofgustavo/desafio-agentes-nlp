@@ -22,3 +22,5 @@ streamlit>=1.31.0       # UI mínima para demonstração (Fase 6) [cite: 58]
 
 ragas>=0.1.0            # Framework de avaliação (Context Precision, Faithfulness, etc.) [cite: 25, 63]
 pytest>=8.0.0           # Framework para rodar testes automatizados na CI
+
+requests>=2.33.1
