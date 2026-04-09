@@ -1,0 +1,1 @@
+"""Responsável por extrair os dados dos arquivos JSON, carregar os PDFs e estruturar as informações."""
