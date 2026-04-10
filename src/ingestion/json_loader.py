@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 from src.models.schema import DailyResult, AneelRecord
 
-class JsonReader:
+class JsonLoader:
     @staticmethod
     def _get_json_paths(json_folder: Path | str) -> List[Path]:
         """Lê a pasta json_folder e retorna a lista de arquivos JSON presentes nela."""
