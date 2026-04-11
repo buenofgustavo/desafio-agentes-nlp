@@ -2,10 +2,10 @@ import os
 import requests
 import zipfile
 from pathlib import Path
+from src.core.config import Constants
 
 DATASET_URL = "https://github.com/buenofgustavo/desafio-agentes-nlp/releases/download/dataset-desafio/dados_grupo_estudos.zip"
-DATA_PATH = Path("data")
-DOWNLOAD_FOLDER = DATA_PATH / "json"
+DOWNLOAD_FOLDER = Constants.JSON_DIR
 DOWNLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 ZIP_PATH = DOWNLOAD_FOLDER / "dados_grupo_estudos.zip"
 
