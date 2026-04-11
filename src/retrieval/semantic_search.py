@@ -1,1 +1,0 @@
-"""Responsável pela busca semântica dos documentos"""

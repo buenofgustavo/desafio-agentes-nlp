@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from typing import List, Dict, Any
-from src.models.schema import DailyResult, AneelRecord
+from src.core.models import DailyResult, AneelRecord
 
 class JsonLoader:
     @staticmethod

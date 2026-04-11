@@ -7,7 +7,7 @@ from typing import List, Dict
 import glob
 import os
 import re
-from src.settings import TESSERACT_CMD
+from src.core.config import TESSERACT_CMD
 
 pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
 
