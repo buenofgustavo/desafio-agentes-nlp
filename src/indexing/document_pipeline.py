@@ -1,5 +1,5 @@
-from src.settings import DOCUMENTS_DIR
-from src.ingestion.parsing import load_documents
+from src.core.config import DOCUMENTS_DIR
+from src.indexing.processing.parsing import load_documents
 
 def main() -> None:
     docs = load_documents(DOCUMENTS_DIR)

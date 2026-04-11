@@ -1,1 +1,0 @@
-"""Responsável por buscar os chunks relevantes e passar como contexto para o modelo de linguagem gerar a resposta."""
