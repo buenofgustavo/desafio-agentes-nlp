@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Optional, List
 from datetime import date, datetime
 
@@ -70,5 +70,59 @@ class DailyResult:
         )
 
 @dataclass
-class DocumentResult:
-    pass
+class ProcessedDocument:
+    """Representa o texto extraído de um Documento unido aos seus metadados legais."""
+    
+    # 1. Rastreabilidade
+    arquivo_origem: str
+    
+    # 2. Conteúdo Extraído
+    texto: str
+    
+    # 3. Metadados para o Payload do Qdrant (achatados do AneelRecord)
+    titulo: Optional[str]
+    autor: Optional[str]
+    material: Optional[str]
+    esfera: Optional[str]
+    situacao: Optional[str]
+    assinatura: Optional[str]
+    publicacao: Optional[str]
+    assunto: Optional[str]
+    ementa: Optional[str]
+    
+    # 4. Controle de Execução do Pipeline
+    sucesso: bool = True
+    erro_mensagem: Optional[str] = None
+    data_processamento: str = field(default_factory=lambda: datetime.now().isoformat())
+
+    @classmethod
+    def from_extraction(
+        cls, 
+        pdf: PdfDocument, 
+        record: AneelRecord, 
+        text: str = "", 
+        erro: Optional[str] = None
+    ) -> 'ProcessedDocument':
+        """
+        Cria um ProcessedDocument combinando as informações do PDF físico 
+        e do registro jurídico associado a ele.
+        """
+        return cls(
+            arquivo_origem=pdf.arquivo,
+            texto=text,
+            titulo=record.titulo,
+            autor=record.autor,
+            material=record.material,
+            esfera=record.esfera,
+            situacao=record.situacao,
+            assinatura=record.assinatura,
+            publicacao=record.publicacao,
+            assunto=record.assunto,
+            ementa=record.ementa,
+            sucesso=(erro is None),
+            erro_mensagem=erro
+        )
+
+    def to_dict(self) -> dict:
+        """Converte a classe para dicionário para salvar facilmente como JSON."""
+        return asdict(self)
