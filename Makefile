@@ -2,6 +2,7 @@
 PYTHON = python3
 PIP = pip
 DOCKER = docker-compose
+GCP_BUCKET_PATH = gs://aneel-raw-data/aneel-documents/
 
 # Alvo padrão quando você digita apenas 'make'
 help:
@@ -10,6 +11,9 @@ help:
 	@echo "  make up       - Sobe o banco de dados (Qdrant) via Docker"
 	@echo "  make down     - Para e remove os containers do Docker"
 	@echo "  make dataset  - Baixa e extrai o dataset necessário para o projeto"
+	@echo "  make ingestion - Executa o pipeline de ingestão dos documentos"
+	@echo "  make sync-data  - Baixa os Documentos da Aneel que foram enviados pro bucket GCP (Acesso Público)"
+	@echo "  make upload-data - Envia os Documentos do disco para o bucket GCP (Acesso Privado, apenas para admins)"
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -26,3 +30,15 @@ dataset:
 
 ingestion:
 	$(PYTHON) -m src.indexing.document_pipeline
+
+sync-data:
+	@echo "Iniciando o download paralelo do Storage..."
+	
+	mkdir -p data/raw/documents
+	
+	time gcloud storage rsync $(GCP_BUCKET_PATH) data/raw/documents/ --recursive
+
+# Upload TO the cloud (Private, only for admins)
+upload-data:
+	@echo "Enviando novos Documentos do disco para o Storage..."
+	time gcloud storage rsync data/raw/documents/ $(GCP_BUCKET_PATH) --recursive
