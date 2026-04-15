@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 from typing import List, Dict, Any
 from src.core.models import DailyResult, AneelRecord
+from src.utils.logger import LoggingService
+
+logger = LoggingService.setup_logger(__name__)
 
 class JsonLoader:
     @staticmethod
@@ -31,12 +34,12 @@ class JsonLoader:
                     daily_result = DailyResult.from_dict(result_dict)
 
                     if daily_result.is_empty:
-                        print(f"Nenhum registro encontrado em {daily_result.data}")
+                        logger.debug(f"Nenhum registro encontrado em {daily_result.data}")
                         continue
                     
                     aneel_record_list.extend(daily_result.registros)
         except Exception as e:
-            print(f"Erro na leitura do arquivo {json_path.name}: {e}")
+            logger.error(f"Erro na leitura do arquivo {json_path.name}: {e}")
         
         return aneel_record_list
     
