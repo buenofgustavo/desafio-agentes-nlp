@@ -1,0 +1,38 @@
+{
+  "overall_extensions": {
+    "pdf": 26772,
+    "html": 154,
+    "zip": 48,
+    "htm": 34,
+    "xlsx": 14,
+    "rar": 1,
+    "xlsm": 3
+  },
+  "by_year": {
+    "2016": {
+      "pdf": 6202,
+      "html": 48,
+      "zip": 10,
+      "htm": 3,
+      "xlsx": 2,
+      "rar": 1,
+      "xlsm": 1
+    },
+    "2021": {
+      "pdf": 9524,
+      "html": 55,
+      "zip": 21,
+      "htm": 15,
+      "xlsx": 8,
+      "xlsm": 1
+    },
+    "2022": {
+      "pdf": 11046,
+      "htm": 16,
+      "html": 51,
+      "zip": 17,
+      "xlsx": 4,
+      "xlsm": 1
+    }
+  }
+}
