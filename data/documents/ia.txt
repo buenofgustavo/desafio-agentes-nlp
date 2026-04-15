@@ -1,7 +1,0 @@
-Inteligência Artificial é uma área da computação que busca criar sistemas capazes de realizar tarefas que normalmente exigem inteligência humana.
-
-Machine Learning é uma subárea da Inteligência Artificial que permite que sistemas aprendam a partir de dados.
-
-Deep Learning é uma subárea de Machine Learning baseada em redes neurais profundas.
-
-O Processamento de Linguagem Natural (NLP) permite que computadores entendam e gerem linguagem humana.

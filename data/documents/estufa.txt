@@ -1,9 +1,0 @@
-A estufa é um ambiente controlado utilizado para o cultivo de plantas.
-
-A temperatura ideal para a maioria das plantas é entre 18°C e 24°C.
-
-A umidade ideal deve ficar entre 60% e 80%.
-
-Se a temperatura ultrapassar 30°C, o sistema deve ligar a ventilação.
-
-Se a umidade ficar abaixo de 50%, o sistema deve ativar a irrigação.
