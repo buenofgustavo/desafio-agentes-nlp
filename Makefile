@@ -23,3 +23,6 @@ down:
 
 dataset:
 	$(PYTHON) -m scripts.download_dataset
+
+ingestion:
+	$(PYTHON) -m src.indexing.document_pipeline
