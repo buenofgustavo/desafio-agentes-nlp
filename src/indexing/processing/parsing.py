@@ -8,6 +8,9 @@ import glob
 import os
 import re
 from src.core.config import TESSERACT_CMD
+from src.utils.logger import LoggingService
+
+logger = LoggingService.setup_logger(__name__)
 
 pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
 
