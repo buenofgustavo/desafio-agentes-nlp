@@ -1,51 +1,51 @@
 # =========================
 # PARSER / DOCUMENTOS
 # =========================
-docling==2.86.0 # Parser avançado para tabelas e layouts complexos
-pymupdf==1.27.2.2 # Fallback rápido para extração de texto
-pytesseract==0.3.13 # OCR para documentos escaneados
+docling>=2.86.0 # Parser avançado para tabelas e layouts complexos
+pymupdf>=1.27.2.2 # Fallback rápido para extração de texto
+pytesseract>=0.3.13 # OCR para documentos escaneados
 
 # =========================
 # ORQUESTRAÇÃO / RAG
 # =========================
-langgraph==1.1.6 # Controle de fluxo do agente
-llama-index==0.14.20 # Abstrações base para RAG e indexação
-langsmith==0.7.30 # Tracing e debug da pipeline
+langgraph>=1.1.6 # Controle de fluxo do agente
+llama-index>=0.14.20 # Abstrações base para RAG e indexação
+langsmith>=0.7.30 # Tracing e debug da pipeline
 
 # =========================
 # LLM / EMBEDDINGS
 # =========================
-anthropic==0.94.0 # API do Claude (Sonnet) para o gerador e reformulação
-sentence-transformers==5.4.0 # Para rodar o multilingual-e5-large localmente
-transformers==5.5.3 # Necessário para o cross-encoder/ms-marco
-torch==2.11.0 # Backend para os modelos do HuggingFace
+anthropic>=0.94.0 # API do Claude (Sonnet) para o gerador e reformulação
+sentence-transformers>=5.4.0 # Para rodar o multilingual-e5-large localmente
+transformers>=5.5.3 # Necessário para o cross-encoder/ms-marco
+# torch>=2.11.0 # Backend para os modelos do HuggingFace
 
 # =========================
 # BUSCA / RETRIEVAL
 # =========================
-qdrant-client==1.17.1 # Cliente Python para comunicação com o Qdrant
-rank-bm25==0.2.2 # Implementação em Python do algoritmo BM25
+qdrant-client>=1.17.1 # Cliente Python para comunicação com o Qdrant
+rank-bm25>=0.2.2 # Implementação em Python do algoritmo BM25
 
 # =========================
 # API / BACKEND
 # =========================
-fastapi==0.135.3 # Framework web assíncrono
-uvicorn==0.44.0 # Servidor ASGI para rodar a FastAPI
-python-dotenv==1.2.2 # Para carregar variáveis de ambiente
+fastapi>=0.135.3 # Framework web assíncrono
+uvicorn>=0.44.0 # Servidor ASGI para rodar a FastAPI
+python-dotenv>=1.2.2 # Para carregar variáveis de ambiente
 
 # =========================
 # FRONTEND
 # =========================
-streamlit==1.56.0 # UI mínima para demonstração
+streamlit>=1.56.0 # UI mínima para demonstração
 
 # =========================
 # AVALIAÇÃO / TESTES
 # =========================
-ragas==0.4.3 # Framework de avaliação (Context Precision, Faithfulness, etc.)
-pytest==9.0.3 # Framework para rodar testes automatizados na CI
+ragas>=0.4.3 # Framework de avaliação (Context Precision, Faithfulness, etc.)
+pytest>=9.0.3 # Framework para rodar testes automatizados na CI
 
 # =========================
 # UTILITÁRIOS
 # =========================
-requests==2.33.1 # Cliente HTTP simples e síncrono
-curl_cffi==0.15.0 # Cliente HTTP baseado em libcurl
+requests>=2.33.1 # Cliente HTTP simples e síncrono
+curl_cffi>=0.15.0 # Cliente HTTP baseado em libcurl
