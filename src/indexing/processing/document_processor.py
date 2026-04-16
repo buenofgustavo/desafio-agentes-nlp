@@ -205,7 +205,7 @@ class DocumentProcessor:
         logger.info(f"Processando {total_documents} documentos usando {max_workers} processos locais.")
 
         processed_count = 0
-        batch_size = 32
+        batch_size = 10
         
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             with tqdm(total=total_documents, desc="Extraindo Documentos", unit="docs") as pbar:
