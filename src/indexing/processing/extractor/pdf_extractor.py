@@ -154,7 +154,7 @@ class PdfExtractor:
             if text:
                 tables_text = cls._extract_tables_with_pdfplumber(pdf_path)
                 if tables_text:
-                    text += "\n\n--- TABELAS EXTRAÍDAS ---\n" + tables_text
+                    text += "\n\n--- TABELAS EXTRAÍDAS (ESTRUTURADAS) ---\n" + tables_text
                 return text
         except Exception:
             is_pdf_broken = True

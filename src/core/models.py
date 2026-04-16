@@ -20,8 +20,8 @@ class PdfDocument:
 
 @dataclass
 class AneelRecord:
-    numeracao_item: str
-    titulo: str
+    numeracao_item: Optional[str]
+    titulo: Optional[str]
     autor: Optional[str]
     material: Optional[str]
     esfera: Optional[str]
@@ -77,7 +77,7 @@ class ProcessedDocument:
     arquivo_origem: str
     
     # 2. Conteúdo Extraído
-    texto: str
+    texto_documento: str
     
     # 3. Metadados para o Payload do Qdrant (achatados do AneelRecord)
     titulo: Optional[str]
@@ -89,19 +89,13 @@ class ProcessedDocument:
     publicacao: Optional[str]
     assunto: Optional[str]
     ementa: Optional[str]
-    
-    # 4. Controle de Execução do Pipeline
-    sucesso: bool = True
-    erro_mensagem: Optional[str] = None
-    data_processamento: str = field(default_factory=lambda: datetime.now().isoformat())
 
     @classmethod
     def from_extraction(
         cls, 
         pdf: PdfDocument, 
         record: AneelRecord, 
-        text: str = "", 
-        erro: Optional[str] = None
+        document_text: str = "", 
     ) -> 'ProcessedDocument':
         """
         Cria um ProcessedDocument combinando as informações do PDF físico 
@@ -109,7 +103,7 @@ class ProcessedDocument:
         """
         return cls(
             arquivo_origem=pdf.arquivo,
-            texto=text,
+            texto_documento=document_text,
             titulo=record.titulo,
             autor=record.autor,
             material=record.material,
@@ -119,8 +113,6 @@ class ProcessedDocument:
             publicacao=record.publicacao,
             assunto=record.assunto,
             ementa=record.ementa,
-            sucesso=(erro is None),
-            erro_mensagem=erro
         )
 
     def to_dict(self) -> dict:

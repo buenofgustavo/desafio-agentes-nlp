@@ -1,11 +1,10 @@
 """Coordenação do processamento de documentos: extração de texto e persistência como JSON."""
 
 import json
-import tempfile
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import List, Dict
 
-from src.core.models import AneelRecord, PdfDocument, ProcessedDocument
+from src.core.models import AneelRecord, ProcessedDocument
 from src.core.config import Constants
 from src.indexing.processing.extractor.pdf_extractor import PdfExtractor
 from src.indexing.processing.extractor.docx_extractor import DocxExtractor
@@ -25,8 +24,6 @@ class DocumentProcessor:
     SUPPORTED_TEXT_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".xlsm", ".htm"}
     ARCHIVE_EXTENSIONS = {".zip", ".rar"}
     ALL_SUPPORTED_EXTENSIONS = SUPPORTED_TEXT_EXTENSIONS | ARCHIVE_EXTENSIONS
-
-    # ── Extração de texto ──────────────────────────────────────────
 
     @classmethod
     def _extract_text_from_file(cls, file_path: Path, file_ext: str) -> str:
@@ -57,17 +54,17 @@ class DocumentProcessor:
                 RarExtractor.extract_rar_file(archive_path, extract_dir)
 
             text_parts = []
-            for inner_file in sorted(extract_dir.rglob("*")):
-                if not inner_file.is_file():
+            for file_path in sorted(extract_dir.rglob("*")):
+                if not FileManager.verify_file_exists(file_path):
                     continue
 
-                inner_ext = cls._resolve_extension(inner_file)
-                if inner_ext not in cls.SUPPORTED_TEXT_EXTENSIONS:
+                ext = cls._resolve_extension(file_path)
+                if ext not in cls.SUPPORTED_TEXT_EXTENSIONS:
                     continue
 
-                inner_text = cls._extract_text_from_file(inner_file, inner_ext)
-                if inner_text and inner_text.strip():
-                    text_parts.append(f"--- Texto extraído de {inner_file.name} ---\n{inner_text}")
+                file_text = cls._extract_text_from_file(file_path, ext)
+                if file_text and file_text.strip():
+                    text_parts.append(f"--- Texto extraído de {file_path.name} ---\n{file_text}")
 
             return "\n\n".join(text_parts)
 
@@ -75,10 +72,7 @@ class DocumentProcessor:
             logger.error(f"Erro ao processar arquivo compactado '{archive_path.name}': {e}")
             return ""
         finally:
-            # Limpa a pasta de extração temporária
             FileManager.remove_path(extract_dir)
-
-    # ── Resolução de extensão ──────────────────────────────────────
 
     @classmethod
     def _resolve_extension(cls, file_path: Path) -> str:
@@ -88,15 +82,12 @@ class DocumentProcessor:
         if ext and ext in cls.ALL_SUPPORTED_EXTENSIONS:
             return ext
 
-        # Tenta adivinhar a extensão pelo conteúdo do arquivo
         guessed = FileManager.guess_file_extension(file_path)
         if guessed and guessed in cls.ALL_SUPPORTED_EXTENSIONS:
             logger.debug(f"Extensão do arquivo '{file_path.name}' detectada como '{guessed}' via análise de conteúdo.")
             return guessed
 
         return ext or ""
-
-    # ── Persistência ───────────────────────────────────────────────
 
     @staticmethod
     def _output_json_path(output_dir: Path, filename: str) -> Path:
@@ -110,8 +101,6 @@ class DocumentProcessor:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(doc.to_dict(), f, ensure_ascii=False, indent=2)
-
-    # ── Processamento individual ───────────────────────────────────
 
     @classmethod
     def _process_single_file(cls, file_path: Path) -> str:
@@ -132,21 +121,28 @@ class DocumentProcessor:
         else:
             logger.warning(f"Extensão '{ext}' não suportada: {file_path.name}")
             return ""
-
-    # ── Processamento em lote ──────────────────────────────────────
+        
+    @classmethod
+    def _show_progress(cls, processed_count: int, total_documents: int, stats: Dict[str, int]) -> None:
+        """Exibe o progresso do processamento no console."""
+        logger.info(
+            f"--------------------------------\n"
+            f"Progresso: {processed_count}/{total_documents}\n"
+            f"({100 * processed_count / total_documents:.1f}%)\n"
+            f"Sucesso={stats['success']}, Falhas={stats['failed']}\n"
+            f"Já existiam={stats['skipped_existing']}, Não encontrados={stats['skipped_not_found']}\n"
+            f"--------------------------------"
+        )
 
     @classmethod
-    def process_all(
+    def process_all_documents(
         cls,
         records: List[AneelRecord],
         documents_dir: Path = Constants.DOCUMENTS_DIR,
         output_dir: Path = Constants.PROCESSED_DATA_DIR,
     ) -> None:
-        """Processa todos os documentos em dois passes:
+        """Processa todos os documentos salvos nos registros, extraindo texto e salvando como JSON."""
         
-        1. Arquivos vinculados a registros (com metadados completos)
-        2. Arquivos órfãos no diretório (sem metadados)
-        """
         output_dir.mkdir(parents=True, exist_ok=True)
 
         stats = {
@@ -154,20 +150,15 @@ class DocumentProcessor:
             "skipped_existing": 0,
             "skipped_not_found": 0,
             "failed": 0,
-            "orphans_processed": 0,
         }
 
-        # ── Pass 1: Arquivos vinculados a registros ────────────────
-        processed_filenames: Set[str] = set()
-
-        total_pdfs = sum(len(record.pdfs) for record in records)
-        logger.info(f"Pass 1: Processando {total_pdfs} documentos vinculados a {len(records)} registros.")
+        total_documents = sum(len(record.pdfs) for record in records)
+        logger.info(f"Processando {total_documents} documentos vinculados a {len(records)} registros.")
 
         processed_count = 0
         for record in records:
             for pdf in record.pdfs:
                 processed_count += 1
-                processed_filenames.add(pdf.arquivo)
 
                 output_path = cls._output_json_path(output_dir, pdf.arquivo)
 
@@ -184,103 +175,26 @@ class DocumentProcessor:
 
                 if not FileManager.verify_file_has_content(file_path):
                     logger.warning(f"Arquivo vazio (0 bytes) ignorado: {pdf.arquivo}")
-                    doc = ProcessedDocument.from_extraction(pdf, record, erro="Arquivo vazio (0 bytes)")
-                    cls._save_document(doc, output_path)
                     stats["failed"] += 1
                     continue
 
                 try:
-                    text = cls._process_single_file(file_path)
+                    document_text = cls._process_single_file(file_path)
 
-                    if not text or not text.strip():
-                        doc = ProcessedDocument.from_extraction(pdf, record, erro="Nenhum texto extraído")
-                        cls._save_document(doc, output_path)
+                    if not document_text or not document_text.strip():
+                        logger.warning(f"Nenhum texto extraído de: {pdf.arquivo}")
                         stats["failed"] += 1
                     else:
-                        doc = ProcessedDocument.from_extraction(pdf, record, text=text)
+                        doc = ProcessedDocument.from_extraction(pdf, record, document_text=document_text)
                         cls._save_document(doc, output_path)
                         stats["success"] += 1
 
                 except Exception as e:
                     logger.error(f"Erro inesperado ao processar '{pdf.arquivo}': {e}")
-                    doc = ProcessedDocument.from_extraction(pdf, record, erro=str(e))
-                    cls._save_document(doc, output_path)
                     stats["failed"] += 1
 
                 if processed_count % 500 == 0:
-                    logger.info(
-                        f"Progresso Pass 1: {processed_count}/{total_pdfs} "
-                        f"({100 * processed_count / total_pdfs:.1f}%) | "
-                        f"Sucesso={stats['success']}, Falhas={stats['failed']}, "
-                        f"Ignorados={stats['skipped_existing']}"
-                    )
+                    cls._show_progress(processed_count, total_documents, stats)
 
-        logger.info(
-            f"Pass 1 concluído. Sucesso={stats['success']}, "
-            f"Falhas={stats['failed']}, Já existiam={stats['skipped_existing']}, "
-            f"Não encontrados={stats['skipped_not_found']}"
-        )
-
-        # ── Pass 2: Arquivos órfãos ────────────────────────────────
-        logger.info("Pass 2: Verificando arquivos órfãos no diretório de documentos.")
-
-        orphan_count = 0
-        for file_path in sorted(documents_dir.iterdir()):
-            if not file_path.is_file():
-                continue
-
-            if file_path.name in processed_filenames:
-                continue
-
-            output_path = cls._output_json_path(output_dir, file_path.name)
-            if output_path.exists():
-                stats["skipped_existing"] += 1
-                continue
-
-            if not FileManager.verify_file_has_content(file_path):
-                continue
-
-            try:
-                text = cls._process_single_file(file_path)
-
-                if not text or not text.strip():
-                    doc = ProcessedDocument(
-                        arquivo_origem=file_path.name,
-                        texto="",
-                        titulo=None, autor=None, material=None,
-                        esfera=None, situacao=None, assinatura=None,
-                        publicacao=None, assunto=None, ementa=None,
-                        sucesso=False,
-                        erro_mensagem="Nenhum texto extraído (arquivo órfão)",
-                    )
-                else:
-                    doc = ProcessedDocument(
-                        arquivo_origem=file_path.name,
-                        texto=text,
-                        titulo=None, autor=None, material=None,
-                        esfera=None, situacao=None, assinatura=None,
-                        publicacao=None, assunto=None, ementa=None,
-                    )
-                    stats["orphans_processed"] += 1
-
-                cls._save_document(doc, output_path)
-                orphan_count += 1
-
-            except Exception as e:
-                logger.error(f"Erro ao processar arquivo órfão '{file_path.name}': {e}")
-                stats["failed"] += 1
-
-        logger.info(
-            f"Pass 2 concluído. Órfãos processados={stats['orphans_processed']}, "
-            f"total de órfãos encontrados={orphan_count}"
-        )
-
-        # ── Resumo final ───────────────────────────────────────────
-        logger.info(
-            f"Processamento finalizado. "
-            f"Sucesso={stats['success']}, "
-            f"Órfãos={stats['orphans_processed']}, "
-            f"Falhas={stats['failed']}, "
-            f"Já existiam={stats['skipped_existing']}, "
-            f"Não encontrados={stats['skipped_not_found']}"
-        )
+        logger.info(f"Processamento concluído...")
+        cls._show_progress(processed_count, total_documents, stats)
