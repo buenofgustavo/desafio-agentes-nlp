@@ -1,10 +1,13 @@
 """Coordenação do processamento de documentos: extração de texto e persistência como JSON."""
 
+import os
 import json
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any
+from tqdm import tqdm
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from src.core.models import AneelRecord, ProcessedDocument
+from src.core.models import AneelRecord, ProcessedDocument, PdfDocument
 from src.core.config import Constants
 from src.indexing.processing.extractor.pdf_extractor import PdfExtractor
 from src.indexing.processing.extractor.docx_extractor import DocxExtractor
@@ -89,11 +92,12 @@ class DocumentProcessor:
 
         return ext or ""
 
-    @staticmethod
-    def _output_json_path(output_dir: Path, filename: str) -> Path:
+    @classmethod
+    def _output_json_path(cls, output_dir: Path, filename: str) -> Path:
         """Gera o caminho do JSON de saída a partir do nome do arquivo original."""
-        stem = Path(filename).stem
-        return output_dir / f"{stem}.json"
+        stem = Path(filename).stem.strip()
+        ext = cls._resolve_extension(Path(filename))
+        return output_dir / f"{stem}_{ext.replace('.', '')}.json"
 
     @staticmethod
     def _save_document(doc: ProcessedDocument, output_path: Path) -> None:
@@ -126,7 +130,7 @@ class DocumentProcessor:
     def _show_progress(cls, processed_count: int, total_documents: int, stats: Dict[str, int]) -> None:
         """Exibe o progresso do processamento no console."""
         logger.info(
-            f"--------------------------------\n"
+            f"\n--------------------------------\n"
             f"Progresso: {processed_count}/{total_documents}\n"
             f"({100 * processed_count / total_documents:.1f}%)\n"
             f"Sucesso={stats['success']}, Falhas={stats['failed']}\n"
@@ -135,14 +139,53 @@ class DocumentProcessor:
         )
 
     @classmethod
+    def _process_single_document_task(cls, pdf: PdfDocument, record: AneelRecord, documents_dir: Path, output_dir: Path) -> Dict[str, Any]:
+        """Processa um único documento para ser executado no ProcessPoolExecutor."""
+
+        result = {"status": "failed", "pdf_arquivo": pdf.arquivo, "error": None}
+
+        try:
+            output_path = cls._output_json_path(output_dir, pdf.arquivo)
+
+            if output_path.exists():
+                result["status"] = "skipped_existing"
+                return result
+
+            file_path = documents_dir / pdf.arquivo
+
+            if not FileManager.verify_file_exists(file_path):
+                result["status"] = "skipped_not_found"
+                return result
+
+            if not FileManager.verify_file_has_content(file_path):
+                result["status"] = "failed"
+                result["error"] = "Arquivo vazio (0 bytes)"
+                return result
+
+            document_text = cls._process_single_file(file_path)
+
+            if not document_text or not document_text.strip():
+                result["status"] = "failed"
+                result["error"] = "Nenhum texto extraído"
+            else:
+                doc = ProcessedDocument.from_extraction(pdf, record, document_text=document_text)
+                cls._save_document(doc, output_path)
+                result["status"] = "success"
+        except Exception as e:
+            result["status"] = "failed"
+            result["error"] = str(e)
+
+        return result
+
+    @classmethod
     def process_all_documents(
         cls,
         records: List[AneelRecord],
         documents_dir: Path = Constants.DOCUMENTS_DIR,
         output_dir: Path = Constants.PROCESSED_DATA_DIR,
     ) -> None:
-        """Processa todos os documentos salvos nos registros, extraindo texto e salvando como JSON."""
-        
+        """Processa todos os documentos salvos nos registros usando ProcessPoolExecutor."""
+
         output_dir.mkdir(parents=True, exist_ok=True)
 
         stats = {
@@ -152,49 +195,46 @@ class DocumentProcessor:
             "failed": 0,
         }
 
-        total_documents = sum(len(record.pdfs) for record in records)
-        logger.info(f"Processando {total_documents} documentos vinculados a {len(records)} registros.")
-
-        processed_count = 0
+        tasks_params = []
         for record in records:
             for pdf in record.pdfs:
-                processed_count += 1
+                tasks_params.append((pdf, record, documents_dir, output_dir))
 
-                output_path = cls._output_json_path(output_dir, pdf.arquivo)
+        total_documents = len(tasks_params)
+        max_workers = 2
+        logger.info(f"Processando {total_documents} documentos usando {max_workers} processos locais.")
 
-                if output_path.exists():
-                    stats["skipped_existing"] += 1
-                    continue
+        processed_count = 0
+        batch_size = 32
+        
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            with tqdm(total=total_documents, desc="Extraindo Documentos", unit="docs") as pbar:
+                for i in range(0, total_documents, batch_size):
+                    batch_params = tasks_params[i:i + batch_size]
+                    futures = {
+                        executor.submit(cls._process_single_document_task, *params): params[0].arquivo
+                        for params in batch_params
+                    }
+                    
+                    for future in as_completed(futures):
+                        pdf_arquivo = futures[future]
+                        processed_count += 1
+                        try:
+                            result = future.result()
+                            status = result["status"]
+                            stats[status] += 1
+                            
+                            if status == "failed" and result.get("error"):
+                                logger.warning(f"Falha ao processar '{pdf_arquivo}': {result['error']}")
 
-                file_path = documents_dir / pdf.arquivo
+                            if processed_count % 200 == 0:
+                                cls._show_progress(processed_count, total_documents, stats)
+                                
+                        except Exception as e:
+                            logger.error(f"Erro inesperado no processo paralelo para '{pdf_arquivo}': {e}")
+                            stats["failed"] += 1
+                        finally:
+                            pbar.update(1)
 
-                if not FileManager.verify_file_exists(file_path):
-                    logger.warning(f"Arquivo não encontrado no disco: {pdf.arquivo}")
-                    stats["skipped_not_found"] += 1
-                    continue
-
-                if not FileManager.verify_file_has_content(file_path):
-                    logger.warning(f"Arquivo vazio (0 bytes) ignorado: {pdf.arquivo}")
-                    stats["failed"] += 1
-                    continue
-
-                try:
-                    document_text = cls._process_single_file(file_path)
-
-                    if not document_text or not document_text.strip():
-                        logger.warning(f"Nenhum texto extraído de: {pdf.arquivo}")
-                        stats["failed"] += 1
-                    else:
-                        doc = ProcessedDocument.from_extraction(pdf, record, document_text=document_text)
-                        cls._save_document(doc, output_path)
-                        stats["success"] += 1
-
-                except Exception as e:
-                    logger.error(f"Erro inesperado ao processar '{pdf.arquivo}': {e}")
-                    stats["failed"] += 1
-
-                if processed_count % 500 == 0:
-                    cls._show_progress(processed_count, total_documents, stats)
-
-        logger.info(f"Processamento concluído...")
+        logger.info("Processamento concluído...")
         cls._show_progress(processed_count, total_documents, stats)

@@ -32,8 +32,8 @@ class FileManager:
 
     @staticmethod
     def get_file_extension(file_path: Path) -> str:
-        """Retorna a extensão do arquivo em letras minúsculas."""
-        return file_path.suffix.lower()
+        """Retorna a extensão do arquivo em letras minúsculas sem espaços."""
+        return file_path.suffix.lower().replace(" ", "")
 
     @staticmethod
     def verify_file_has_content(file_path: Path) -> bool:

@@ -1,5 +1,6 @@
 """Extração de texto de planilhas (XLSX, XLSM) utilizando pandas."""
 import pandas as pd
+import warnings
 from pathlib import Path
 from typing import Literal
 
@@ -19,6 +20,8 @@ class SpreadsheetExtractor:
     @staticmethod
     def extract_text_from_spreadsheet(file_path: Path, file_extension: Literal[".xlsx", ".xlsm"]) -> str:
         """Extrai texto de um arquivo de planilha. Retorna o texto extraído ou uma string vazia em caso de falha."""
+        warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+
         if not FileManager.verify_file_exists(file_path):
             logger.warning(f"Arquivo de planilha não encontrado: {file_path}")
             return ""
