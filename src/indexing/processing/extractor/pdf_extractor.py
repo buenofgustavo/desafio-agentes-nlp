@@ -1,6 +1,7 @@
 """Extração de texto de arquivos PDF utilizando múltiplas estratégias (PyMuPDF, pdfplumber, OCR)."""
 
 import fitz  # type: ignore # PyMuPDF
+import tempfile
 import pdfplumber
 import pytesseract  # type: ignore
 from pdf2image import convert_from_path
@@ -61,6 +62,9 @@ class PdfExtractor:
                                     cells = [c for c in cells if c]
                                     if cells:
                                         tables_text.append(" | ".join(cells))
+                    
+                    # FUNDAMENTAL para evitar OutOfMemory / Swapping: limpa o cache de layout do pdfminer
+                    page.flush_cache()
 
             if tables_text:
                 logger.debug(f"Tabelas extraídas com pdfplumber ({len(tables_text)} linhas)")
@@ -75,9 +79,14 @@ class PdfExtractor:
         """Extrai texto puro usando pdfplumber como fallback."""
         try:
             with pdfplumber.open(pdf_path) as pdf:
-                text = "\n".join(
-                    page.extract_text() for page in pdf.pages if page.extract_text()
-                )
+                texts = []
+                for page in pdf.pages:
+                    txt = page.extract_text()
+                    if txt:
+                        texts.append(txt)
+                    page.flush_cache()
+                    
+                text = "\n".join(texts)
                 if text.strip():
                     logger.debug("Texto extraído com sucesso via pdfplumber (fallback texto)")
                     return text
@@ -88,15 +97,17 @@ class PdfExtractor:
 
     @staticmethod
     def _extract_with_ocr(pdf_path: Path) -> str:
-        """Extrai texto via OCR (Tesseract)."""
+        """Extrai texto via OCR (Tesseract), economizando RAM gerando imagens sob-demanda em disco."""
         try:
-            images = convert_from_path(pdf_path)
             ocr_text = []
+            # Usar temporary directory evita carregar todas as imagens do PDF na memória de uma vez (bloat)
+            with tempfile.TemporaryDirectory() as tmpdir:
+                images_paths = convert_from_path(pdf_path, output_folder=tmpdir, paths_only=True)
 
-            for image in images:
-                image_text = pytesseract.image_to_string(image, lang='por')
-                if image_text and image_text.strip():
-                    ocr_text.append(image_text)
+                for img_path in images_paths:
+                    image_text = pytesseract.image_to_string(str(img_path), lang='por')
+                    if image_text and image_text.strip():
+                        ocr_text.append(image_text)
 
             full_ocr_text = "\n".join(ocr_text).strip()
             if full_ocr_text:

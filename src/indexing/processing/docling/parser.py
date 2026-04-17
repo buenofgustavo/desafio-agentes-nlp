@@ -23,6 +23,8 @@ import zipfile
 import time
 import json
 import traceback
+import threading
+import ftfy
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -41,11 +43,13 @@ BUCKET_NAME   = os.environ["GCS_BUCKET"]
 INPUT_PREFIX  = os.environ.get("INPUT_PREFIX", "aneel-documents/")
 OUTPUT_PREFIX = os.environ.get("OUTPUT_PREFIX", "docling-markdowns/")
 STATE_BLOB    = os.environ.get("STATE_BLOB",   "processing_state/processed.json")
-MAX_WORKERS   = int(os.environ.get("MAX_WORKERS", "4"))
-BATCH_SIZE    = int(os.environ.get("BATCH_SIZE",  "10"))
+MAX_WORKERS   = int(os.environ.get("MAX_WORKERS", "10"))
+BATCH_SIZE    = int(os.environ.get("BATCH_SIZE",  "100"))
 
 SUPPORTED_EXT = {".pdf", ".html", ".htm", ".xlsx", ".xlsm"}
 ARCHIVE_EXT   = {".zip", ".rar"}
+
+gpu_semaphore = threading.Semaphore(4)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Logging
@@ -93,6 +97,7 @@ def build_converter() -> DocumentConverter:
         do_ocr=True,
         do_table_structure=True,
         ocr_options=EasyOcrOptions(
+            lang=["pt"],
             use_gpu=True,
             force_full_page_ocr=False
         ),
@@ -138,10 +143,12 @@ def extract_rar(rar_path: Path, dest_dir: Path) -> list[Path]:
 def convert_file(converter: DocumentConverter, file_path: Path) -> str | None:
     """Convert a single file to Markdown. Returns None on failure."""
     try:
-        result = converter.convert(str(file_path))
-        return result.document.export_to_markdown()
+        with gpu_semaphore:
+            result = converter.convert(str(file_path))
+            raw_markdown = result.document.export_to_markdown()
+            return ftfy.fix_text(raw_markdown)
     except Exception:
-        log.error("Conversion failed for %s:\n%s", file_path, traceback.format_exc())
+        log.error(f"Conversion failed for {file_path}:\n{traceback.format_exc()}")
         return None
 
 
@@ -217,7 +224,10 @@ def process_blob(
 
             # Upload markdown
             out_blob = bucket.blob(out_blob_name)
-            out_blob.upload_from_string(markdown.encode(), content_type="text/markdown")
+            out_blob.upload_from_string(
+                markdown.encode("utf-8-sig"), 
+                content_type="text/markdown; charset=utf-8"
+            )
             log.info(f"   ✔  Uploaded  {out_blob_name}  ({elapsed:.1f}s)")
             stat["outputs"].append(out_blob_name)
             any_ok = True
@@ -271,24 +281,32 @@ def main():
     done = 0
     errors = 0
 
+    log.info(f"Starting processing with {MAX_WORKERS} workers and batch size {BATCH_SIZE}")
     for i in range(0, total, BATCH_SIZE):
         batch = blobs_to_process[i : i + BATCH_SIZE]
         log.info(f"── Batch {i // BATCH_SIZE + 1}/{-(-total // BATCH_SIZE)} ──────────────────────")
 
-        # Use threads only for I/O (download/upload); conversion is sequential on GPU
-        # If you want full parallelism on CPU, increase MAX_WORKERS and remove the lock.
-        for blob in batch:
-            try:
-                result = process_blob(blob, bucket, converter)
-                state[blob.name] = result
-                if result["status"] == "ok":
-                    done += 1
-                else:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            # Submit all blobs in the batch to the thread pool
+            future_to_blob = {
+                executor.submit(process_blob, blob, bucket, converter): blob 
+                for blob in batch
+            }
+
+            # Gather results as they complete
+            for future in as_completed(future_to_blob):
+                blob = future_to_blob[future]
+                try:
+                    result = future.result()
+                    state[blob.name] = result
+                    if result["status"] == "ok":
+                        done += 1
+                    else:
+                        errors += 1
+                except Exception:
+                    log.error(f"Unexpected error on {blob.name}:\n{traceback.format_exc()}")
+                    state[blob.name] = {"blob": blob.name, "status": "error", "error": traceback.format_exc()}
                     errors += 1
-            except Exception:
-                log.error(f"Unexpected error on {blob.name}:\n{traceback.format_exc()}")
-                state[blob.name] = {"blob": blob.name, "status": "error", "error": traceback.format_exc()}
-                errors += 1
 
         # Flush state after each batch (crash-safe)
         save_state(bucket, state)
