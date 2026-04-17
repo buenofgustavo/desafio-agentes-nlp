@@ -1,82 +1,89 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  setup_vm.sh  –  Run ONCE after SSH-ing into the new GCP VM
+#  setup_vm.sh  –  Run ONCE after SSH-ing into the GCP VM
 #
-#  What this does:
-#    1. Installs NVIDIA drivers + CUDA toolkit
-#    2. Installs Python 3.11 + virtualenv
-#    3. Installs all Python dependencies (docling, google-cloud-storage, etc.)
-#    4. Installs unrar (for .rar files)
-#    5. Uploads your parser.py and writes /etc/docling.env
-#    6. Installs and enables the systemd service
+#  Assumptions:
+#    - VM was created with image: common-cu129-ubuntu-2204-nvidia-580
+#    - NVIDIA drivers are already installed (nvidia-smi works)
+#    - VM has a Service Account attached via GCP IAM (No JSON keys needed)
 #
 #  Usage:
-#    chmod +x setup_vm.sh
-#    ./setup_vm.sh
+#    1. Upload this script, parser.py, and docling.service to the VM:
+#         gcloud compute scp parser.py setup_vm.sh docling.service \
+#           docling-parser:~ --zone=us-central1-a
+#    2. SSH in:
+#         gcloud compute ssh docling-parser --zone=us-central1-a
+#    3. Edit the variables below, then:
+#         chmod +x setup_vm.sh && ./setup_vm.sh
 # =============================================================================
 set -euo pipefail
 
 # ── Edit these before running ─────────────────────────────────────────────────
 GCS_BUCKET="aneel-raw-data"      # bucket name (no gs:// prefix)
 INPUT_PREFIX="aneel-documents/"    # source prefix, e.g. "documents/"
-OUTPUT_PREFIX="docling-markdowns/"   # destination prefix, e.g. 
+OUTPUT_PREFIX="docling-markdowns/"   # destination prefix
 STATE_BLOB="processing_state/processed.json"
-MAX_WORKERS="4"
-BATCH_SIZE="10"
+MAX_WORKERS="10"
+BATCH_SIZE="100"
 # ─────────────────────────────────────────────────────────────────────────────
 
 log() { echo -e "\n\033[1;34m▶  $*\033[0m"; }
 
-# ── 1. System packages ────────────────────────────────────────────────────────
-log "Updating system packages"
+# ── 1. Verify GPU ─────────────────────────────────────────────────────────────
+log "Verifying GPU"
+nvidia-smi || { echo "ERROR: nvidia-smi failed."; exit 1; }
+
+# ── 2. System dependencies ────────────────────────────────────────────────────
+log "Installing system dependencies"
 sudo apt-get update -qq
 sudo apt-get install -y -qq \
-    build-essential curl wget git unzip \
-    python3.11 python3.11-venv python3.11-dev python3-pip \
-    libgl1 libglib2.0-0 poppler-utils tesseract-ocr \
-    unrar-free   # for .rar support
+    python3-venv python3-pip \
+    libgl1 libglib2.0-0 \
+    poppler-utils tesseract-ocr \
+    unrar-free
 
-# ── 2. NVIDIA drivers + CUDA 12.x ─────────────────────────────────────────────
-log "Installing NVIDIA drivers and CUDA toolkit"
-
-# Remove old drivers if any
-sudo apt-get remove -y --purge '^nvidia-.*' '^cuda-.*' 2>/dev/null || true
-
-# Add CUDA repo
-CUDA_KEYRING="cuda-keyring_1.1-1_all.deb"
-wget -q "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/${CUDA_KEYRING}"
-sudo dpkg -i "${CUDA_KEYRING}"
-sudo apt-get update -qq
-sudo apt-get install -y -qq cuda-toolkit-12-4 nvidia-driver-550
-
-log "NVIDIA driver installed. GPU info (may show after reboot):"
-nvidia-smi 2>/dev/null || echo "(nvidia-smi not yet active – reboot may be needed)"
-
-# ── 3. Python virtualenv ──────────────────────────────────────────────────────
+# ── 3. Directory Ownership & Virtualenv ───────────────────────────────────────
 log "Creating Python virtualenv at /opt/docling_env"
-sudo python3.11 -m venv /opt/docling_env
-sudo /opt/docling_env/bin/pip install --upgrade pip wheel setuptools
+# Create directories and immediately grant ownership to your user (ireis)
+sudo mkdir -p /opt/docling_env /opt/docling_parser
+sudo chown -R $USER:$USER /opt/docling_env /opt/docling_parser
 
-# ── 4. Install Python dependencies ───────────────────────────────────────────
-log "Installing Python dependencies (this may take 5-10 minutes)"
-# Install PyTorch with CUDA 12.1 support first (required by docling's EasyOCR)
-sudo /opt/docling_env/bin/pip install \
-    torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# Create the venv as your normal user (No sudo here!)
+python3 -m venv /opt/docling_env
 
-# Install the rest
-sudo /opt/docling_env/bin/pip install \
+# Install uv for blazing-fast package management
+/opt/docling_env/bin/pip install uv -q
+
+# ── 4. PyTorch with cu124 wheels (compatible with driver 580 / CUDA 12.9+) ───
+log "Installing PyTorch (cu124)"
+
+# Activate the virtual environment first!
+source /opt/docling_env/bin/activate
+
+uv pip install \
+    torch torchvision \
+    --index-url https://download.pytorch.org/whl/cu124 -q
+
+# ── 5. Docling + GCS + EasyOCR + ftfy ─────────────────────────────────────────
+log "Installing Python dependencies"
+uv pip install \
     "docling>=2.5.0" \
     "google-cloud-storage>=2.16.0" \
     "rarfile>=4.1" \
-    "tqdm>=4.66.0"
+    "easyocr" \
+    "ftfy" -q
 
-# ── 5. Create app directory and copy parser ───────────────────────────────────
-log "Setting up app directory"
-sudo mkdir -p /opt/docling_parser
-sudo cp parser.py /opt/docling_parser/parser.py
-sudo chown -R nobody:nogroup /opt/docling_parser 2>/dev/null || true
+# ── 6. Sanity check ───────────────────────────────────────────────────────────
+log "Verifying PyTorch CUDA"
+/opt/docling_env/bin/python3 -c \
+    "import torch; assert torch.cuda.is_available(), 'CUDA not available!'; \
+     print('OK –', torch.cuda.get_device_name(0))"
 
-# ── 6. Write environment config ───────────────────────────────────────────────
+# ── 7. Deploy parser ──────────────────────────────────────────────────────────
+log "Deploying parser"
+cp parser.py /opt/docling_parser/parser.py
+
+# ── 8. Environment config (No keys!) ──────────────────────────────────────────
 log "Writing /etc/docling.env"
 sudo tee /etc/docling.env > /dev/null <<ENV
 GCS_BUCKET=${GCS_BUCKET}
@@ -86,11 +93,9 @@ STATE_BLOB=${STATE_BLOB}
 MAX_WORKERS=${MAX_WORKERS}
 BATCH_SIZE=${BATCH_SIZE}
 ENV
-
 sudo chmod 600 /etc/docling.env
-log "Environment written to /etc/docling.env"
 
-# ── 7. Install systemd service ────────────────────────────────────────────────
+# ── 9. Systemd service ────────────────────────────────────────────────────────
 log "Installing systemd service"
 sudo cp docling.service /etc/systemd/system/docling-parser.service
 sudo systemctl daemon-reload
@@ -98,13 +103,9 @@ sudo systemctl enable docling-parser.service
 
 log "Setup complete!"
 echo ""
-echo "  Next steps:"
-echo "  1. Reboot if this is the first NVIDIA driver install:  sudo reboot"
-echo "  2. After reboot, verify GPU:                           nvidia-smi"
-echo "  3. Start the parser:                                   sudo systemctl start docling-parser"
-echo "  4. Watch live logs:                                    sudo journalctl -u docling-parser -f"
-echo "  5. Check log file:                                     tail -f /var/log/docling_parser.log"
+echo "  Start parser:  sudo systemctl start docling-parser"
+echo "  Live logs:     sudo journalctl -u docling-parser -f"
+echo "  Log file:      tail -f /var/log/docling_parser.log"
 echo ""
-echo "  To run manually (without systemd):"
-echo "    source /opt/docling_env/bin/activate"
-echo "    env \$(cat /etc/docling.env | xargs) python3 /opt/docling_parser/parser.py"
+echo "  Manual run (for testing):"
+echo "    sudo env \$(cat /etc/docling.env | xargs) /opt/docling_env/bin/python3 /opt/docling_parser/parser.py"
