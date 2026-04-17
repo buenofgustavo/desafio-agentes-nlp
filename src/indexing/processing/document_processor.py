@@ -5,7 +5,9 @@ import json
 from pathlib import Path
 from typing import List, Dict, Any
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed, wait, FIRST_COMPLETED
+import multiprocessing as mp
+import dataclasses
 
 from src.core.models import AneelRecord, ProcessedDocument, PdfDocument
 from src.core.config import Constants
@@ -195,33 +197,50 @@ class DocumentProcessor:
             "failed": 0,
         }
 
-        tasks_params = []
-        for record in records:
-            for pdf in record.pdfs:
-                tasks_params.append((pdf, record, documents_dir, output_dir))
-
-        total_documents = len(tasks_params)
+        total_documents = sum(len(record.pdfs) for record in records)
         max_workers = 2
-        logger.info(f"Processando {total_documents} documentos usando {max_workers} processos locais.")
+        logger.info(f"Processando {total_documents} documentos usando {max_workers} processos locais (spawn context).")
 
+        def task_generator():
+            for record in records:
+                # Remove as referências iterativas de pdfs para não sobrecarregar o IPC pickling.
+                slim_record = dataclasses.replace(record, pdfs=[])
+                for pdf in record.pdfs:
+                    yield (pdf, slim_record, documents_dir, output_dir)
+
+        task_iter = task_generator()
         processed_count = 0
-        batch_size = 10
         
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # O uso de 'spawn' previne a duplicação de todo o uso de RAM (Copy-On-Write no Linux) 
+        # que estava ocorrendo durante a execução do fork no multiprocessamento.
+        ctx = mp.get_context("spawn")
+        
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as executor:
             with tqdm(total=total_documents, desc="Extraindo Documentos", unit="docs") as pbar:
-                for i in range(0, total_documents, batch_size):
-                    batch_params = tasks_params[i:i + batch_size]
-                    futures = {
-                        executor.submit(cls._process_single_document_task, *params): params[0].arquivo
-                        for params in batch_params
-                    }
+                active_futures = {}
+                
+                # Preenche a fila inicial de processamento
+                for _ in range(max_workers * 2):
+                    try:
+                        params = next(task_iter)
+                        future = executor.submit(cls._process_single_document_task, *params)
+                        active_futures[future] = params[0].arquivo
+                    except StopIteration:
+                        break
+
+                # Bounding dinâmico para garantir paralelismo sem encher a memória do Master Queue
+                while active_futures:
+                    done, _ = wait(active_futures.keys(), return_when=FIRST_COMPLETED)
                     
-                    for future in as_completed(futures):
-                        pdf_arquivo = futures[future]
+                    for future in done:
+                        pdf_arquivo = active_futures.pop(future)
                         processed_count += 1
                         try:
                             result = future.result()
-                            status = result["status"]
+                            status = result.get("status", "failed")
+                            
+                            if status not in stats:
+                                stats[status] = 0
                             stats[status] += 1
                             
                             if status == "failed" and result.get("error"):
@@ -235,6 +254,14 @@ class DocumentProcessor:
                             stats["failed"] += 1
                         finally:
                             pbar.update(1)
+                            
+                        # Submete a próxima tarefa assim que uma for concluída
+                        try:
+                            params = next(task_iter)
+                            new_future = executor.submit(cls._process_single_document_task, *params)
+                            active_futures[new_future] = params[0].arquivo
+                        except StopIteration:
+                            pass
 
         logger.info("Processamento concluído...")
         cls._show_progress(processed_count, total_documents, stats)

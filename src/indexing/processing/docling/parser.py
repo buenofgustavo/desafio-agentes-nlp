@@ -15,13 +15,6 @@ Environment variables (set in /etc/docling.env on the VM):
   BATCH_SIZE       - files to process before flushing state (default: 10)
 """
 
-GCS_BUCKET = "aneel-raw-data"      # bucket name (no gs:// prefix)
-INPUT_PREFIX = "aneel-documents/"    # source prefix, e.g. "documents/"
-OUTPUT_PREFIX = "docling-markdowns/"   # destination prefix, e.g. "markdowns/"
-STATE_BLOB = "processing_state/processed.json"      # path inside bucket to store the progress log
-MAX_WORKERS = 4      # parallel download/upload threads (default: 4)
-BATCH_SIZE = 10      # files to process before flushing state (default: 10)
-
 import os
 import sys
 import logging
@@ -45,8 +38,8 @@ from docling.datamodel.base_models import InputFormat
 # Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 BUCKET_NAME   = os.environ["GCS_BUCKET"]
-INPUT_PREFIX  = os.environ.get("INPUT_PREFIX", "documents/")
-OUTPUT_PREFIX = os.environ.get("OUTPUT_PREFIX", "markdowns/")
+INPUT_PREFIX  = os.environ.get("INPUT_PREFIX", "aneel-documents/")
+OUTPUT_PREFIX = os.environ.get("OUTPUT_PREFIX", "docling-markdowns/")
 STATE_BLOB    = os.environ.get("STATE_BLOB",   "processing_state/processed.json")
 MAX_WORKERS   = int(os.environ.get("MAX_WORKERS", "4"))
 BATCH_SIZE    = int(os.environ.get("BATCH_SIZE",  "10"))
