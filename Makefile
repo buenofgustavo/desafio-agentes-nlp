@@ -2,7 +2,9 @@
 PYTHON = python3
 PIP = pip
 DOCKER = docker-compose
-GCP_BUCKET_PATH = gs://aneel-raw-data/aneel-documents/
+GCP_BUCKET_DOCUMENTS_PATH = gs://aneel-raw-data/aneel-documents/
+GCP_BUCKET_PROCESSED_JSON_PATH = gs://aneel-raw-data/processed-json/
+GCP_BUCKET_DOCLING_MARKDOWN_PATH = gs://aneel-raw-data/docling-markdowns/
 
 # Alvo padrão quando você digita apenas 'make'
 help:
@@ -31,14 +33,39 @@ dataset:
 ingestion:
 	$(PYTHON) -m src.indexing.document_pipeline
 
+
+# ================== DADOS BRUTOS (.pdf, .htm, .xlsm, etc) ==================
 sync-data:
 	@echo "Iniciando o download paralelo do Storage..."
 	
 	mkdir -p data/raw/documents
 	
-	time gcloud storage rsync $(GCP_BUCKET_PATH) data/raw/documents/ --recursive
+	time gcloud storage rsync $(GCP_BUCKET_DOCUMENTS_PATH) data/raw/documents/ --recursive
 
 # Upload TO the cloud (Private, only for admins)
 upload-data:
 	@echo "Enviando novos Documentos do disco para o Storage..."
-	time gcloud storage rsync data/raw/documents/ $(GCP_BUCKET_PATH) --recursive
+	time gcloud storage rsync data/raw/documents/ $(GCP_BUCKET_DOCUMENTS_PATH) --recursive
+# ============================================================================
+
+# ===================== DADOS PROCESSADOS (.json) ============================
+sync-processed-json:
+	@echo "Iniciando o download paralelo do Storage (Processed JSON)..."
+	
+	mkdir -p data/processed
+	
+	time gcloud storage rsync $(GCP_BUCKET_PROCESSED_JSON_PATH) data/processed/ --recursive
+
+upload-processed-json:
+	@echo "Enviando novos arquivos JSON do disco para o Storage..."
+	time gcloud storage rsync data/processed/ $(GCP_BUCKET_PROCESSED_JSON_PATH) --recursive
+# ============================================================================
+
+# ========================== DOCLING MARKDOWN ================================
+sync-docling-markdown:
+	@echo "Iniciando o download paralelo do Storage (Docling Markdown)..."
+	
+	mkdir -p data/raw/docling_markdown
+	
+	time gcloud storage rsync $(GCP_BUCKET_DOCLING_MARKDOWN_PATH) data/raw/docling_markdown/ --recursive
+# ============================================================================
