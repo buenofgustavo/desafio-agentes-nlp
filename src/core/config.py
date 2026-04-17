@@ -14,4 +14,5 @@ class Constants:
 	
 	JSON_DIR = RAW_DATA_DIR / "json"
 	DOCUMENTS_DIR = RAW_DATA_DIR / "documents"
+	DOCLING_MARKDOWN_DIR = RAW_DATA_DIR / "docling_markdown"
 	PROCESSED_DATA_DIR = DATA_DIR / "processed"
