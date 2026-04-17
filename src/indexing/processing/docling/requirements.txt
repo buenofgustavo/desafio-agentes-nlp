@@ -1,0 +1,14 @@
+# Docling + GCS parser dependencies
+# Generated for Python 3.11 / CUDA 12.x / NVIDIA T4
+
+# ── Google Cloud ──────────────────────────────────────────────────────────────
+google-cloud-storage>=2.16.0
+
+# ── Docling core ──────────────────────────────────────────────────────────────
+docling>=2.5.0
+
+# ── RAR support (optional – only needed if you have .rar files) ───────────────
+rarfile>=4.1
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+tqdm>=4.66.0          # progress bars (optional, used internally by docling)
