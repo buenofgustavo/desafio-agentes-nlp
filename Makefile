@@ -16,6 +16,10 @@ help:
 	@echo "  make ingestion - Executa o pipeline de ingestão dos documentos"
 	@echo "  make sync-data  - Baixa os Documentos da Aneel que foram enviados pro bucket GCP (Acesso Público)"
 	@echo "  make upload-data - Envia os Documentos do disco para o bucket GCP (Acesso Privado, apenas para admins)"
+	@echo "  make sync-processed-json - Baixa os Documentos processados (JSON) do bucket GCP (Acesso Público)"
+	@echo "  make upload-processed-json - Envia os Documentos processados (JSON) do disco para o bucket GCP (Acesso Privado, apenas para admins)"
+	@echo "  make sync-docling-markdown - Baixa os Documentos processados (Docling Markdown) do bucket GCP (Acesso Público)"
+	@echo "  make upload-docling-markdown - Envia os Documentos processados (Docling Markdown) do disco para o bucket GCP (Acesso Privado, apenas para admins)"
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
