@@ -2,26 +2,34 @@
 Description=Docling GCS Document Parser
 After=network-online.target
 Wants=network-online.target
+# Start only after NVIDIA modules are loaded (GPU VMs)
 After=nvidia-persistenced.service
 
 [Service]
 Type=simple
 EnvironmentFile=/etc/docling.env
 
+# Run as current user – change to a dedicated user in production
 User=root
 
 ExecStart=/opt/docling_env/bin/python3 /opt/docling_parser/parser.py
 
-# One-shot batch job — no automatic restart
-# Change to "on-failure" if you want retries on crash
+# Restart policy: don't restart automatically (one-shot batch job)
+# Change to "on-failure" if you want automatic retries
 Restart=no
 
+# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=docling-parser
 
-# Give the process time to finish the current file on shutdown
+# Give the process time to finish cleanly on shutdown
 TimeoutStopSec=120
+
+# Resource limits
+# Uncomment to cap CPU/RAM if running alongside other services:
+# CPUQuota=90%
+# MemoryMax=14G
 
 [Install]
 WantedBy=multi-user.target
