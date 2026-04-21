@@ -118,3 +118,33 @@ class ProcessedDocument:
     def to_dict(self) -> dict:
         """Converte a classe para dicionário para salvar facilmente como JSON."""
         return asdict(self)
+    
+    
+@dataclass
+class ChildChunk:
+    # text that gets embedded = context_prefix + text
+    text:             str         # raw child text
+    context_prefix:   str         # LLM-generated contextual description
+    text_to_embed:    str         # context_prefix + text (what we actually embed)
+
+    # parent reference — returned to the LLM at query time
+    parent_text:      str
+
+    # position
+    source_file:      str
+    page:             int
+    parent_index:     int
+    child_index:      int
+
+    # Metadados para o Payload do Qdrant (achatados do AneelRecord)
+    titulo: Optional[str]
+    autor: Optional[str]
+    material: Optional[str]
+    esfera: Optional[str]
+    situacao: Optional[str]
+    assinatura: Optional[str]
+    publicacao: Optional[str]
+    assunto: Optional[str]
+    ementa: Optional[str]
+    
+    
