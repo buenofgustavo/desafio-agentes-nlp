@@ -21,8 +21,7 @@ class DocumentChunker:
     CHILD_CHUNK_SIZE = 300
     CHILD_CHUNK_OVERLAP = 30
     
-    def __init__(self, use_context: bool = True):
-        self.use_context = use_context
+    def __init__(self):
         self._anthropic_client: Optional[anthropic.Anthropic] = None
         self.context_generator = ContextGenerator()
         self.parent_splitter = self._make_splitter(
@@ -49,13 +48,13 @@ class DocumentChunker:
             separators=["\n\n", "\n", ". ", " ", ""],
         )
     
-    def chunk_document(self, doc: Dict, meta: Dict) -> List[ChildChunk]:
+    def chunk_document(self, doc: Dict, meta: Dict, use_context: bool = False) -> List[ChildChunk]:
         """Main chunking pipeline with optional context generation."""
         # Phase 1: Build all chunks without context
         raw_chunks = self._build_raw_chunks(doc)
         
         # Phase 2: Generate contexts if enabled
-        contexts = self._generate_contexts(raw_chunks) if self.use_context else [""] * len(raw_chunks)
+        contexts = self._generate_contexts(raw_chunks) if use_context else [""] * len(raw_chunks)
         
         # Phase 3: Assemble final ChildChunk objects
         return self._assemble_chunks(raw_chunks, contexts, meta)
