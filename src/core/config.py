@@ -16,3 +16,7 @@ class Constants:
 	DOCUMENTS_DIR = RAW_DATA_DIR / "documents"
 	DOCLING_MARKDOWN_DIR = RAW_DATA_DIR / "docling_markdown"
 	PROCESSED_DATA_DIR = DATA_DIR / "processed"
+	
+	OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4.1-mini")
+	OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+	ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
