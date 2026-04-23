@@ -25,12 +25,16 @@ logger = LoggingService.setup_logger(__name__)
 load_dotenv()
 
 COLLECTION = os.getenv('QDRANT_COLLECTION', 'setor_eletrico')
-BATCH_SIZE = 64
+# Keep in sync with EMBEDDING_BATCH_SIZE in embedder.py (default 64).
+BATCH_SIZE = int(os.getenv('EMBEDDING_BATCH_SIZE', '64'))
+# Flush every 2 000 chunks: starts embedding sooner and caps peak RAM usage.
+
 
 def _generate_deterministic_id(chunk: ChildChunk) -> str:
     """Generate a deterministic UUID based on chunk location to prevent duplicate insertions."""
     unique_str = f"{chunk.source_file}_{chunk.page}_{chunk.parent_index}_{chunk.child_index}"
     return str(uuid.UUID(hashlib.md5(unique_str.encode("utf-8")).hexdigest()))
+
 
 def run_indexing():
     start_time = time.time()
@@ -45,12 +49,54 @@ def run_indexing():
     client = get_qdrant_client()
     logger.info(f'✓ Coleção "{COLLECTION}" pronta')
 
-    # Step 2: Load documents
+    # Step 2: Load documents and identify already-indexed ones
     load_start = time.time()
     logger.info('📄 [2/4] Carregando documentos processados...')
     documents = load_all_processed()
     load_time = time.time() - load_start
     logger.info(f'✓ {len(documents)} documentos carregados em {load_time:.2f}s')
+    
+    # Get already indexed source files
+    logger.info('🔍 Identificando documentos já indexados...')
+    indexed_files = set()
+    try:
+        # Scroll through collection to get all source_file values
+        indexed_point_count = 0
+        scroll_result = client.scroll(
+            collection_name=COLLECTION,
+            limit=1000,
+            with_payload=True,
+            with_vectors=False
+        )
+        
+        while scroll_result[0]:
+            for point in scroll_result[0]:
+                if point.payload and 'source_file' in point.payload:
+                    indexed_files.add(point.payload['source_file'])
+                    indexed_point_count += 1
+            
+            if scroll_result[1] is None:
+                break
+            
+            scroll_result = client.scroll(
+                collection_name=COLLECTION,
+                limit=1000,
+                offset=scroll_result[1],
+                with_payload=True,
+                with_vectors=False
+            )
+        
+        logger.info(f'✓ {len(indexed_files)} arquivos únicos já indexados ({indexed_point_count} pontos na coleção)')
+    except Exception as e:
+        logger.warning(f'⚠️  Não foi possível recuperar arquivos já indexados: {e}. Processando todos.')
+    
+    # Filter documents to process only new ones
+    docs_to_process = [doc for doc in documents if doc.arquivo_origem not in indexed_files]
+    docs_skipped = len(documents) - len(docs_to_process)
+    
+    if docs_skipped > 0:
+        logger.info(f'⏭️  {docs_skipped} documentos já indexados serão pulados')
+        logger.info(f'📝 {len(docs_to_process)} documentos novos serão processados')
     
     # Initialize processing
     chunker = DocumentChunker()
@@ -60,6 +106,7 @@ def run_indexing():
     total_batches_flushed = 0
     documents_with_errors = 0
     stats_by_doc = []
+    documents_skipped = docs_skipped
     
     def _flush_buffer():
         nonlocal total_processed_chunks, total_batches_flushed
@@ -116,7 +163,7 @@ def run_indexing():
     logger.info('-'*80)
     
     chunk_start_time = time.time()
-    for doc_idx, doc in enumerate(tqdm(documents, desc='Docs'), start=1):
+    for doc_idx, doc in enumerate(tqdm(docs_to_process, desc='Docs'), start=1):
         doc_dict = {
             "pages": [{"page": 1, "text": doc.texto_documento}]
         }
@@ -175,7 +222,8 @@ def run_indexing():
     total_in_db = client.count(collection_name=COLLECTION).count
     total_time = time.time() - start_time
     
-    logger.info(f'✓ Total de documentos processados: {len(documents) - documents_with_errors}/{len(documents)}')
+    logger.info(f'✓ Total de documentos processados: {len(docs_to_process) - documents_with_errors}/{len(docs_to_process)}')
+    logger.info(f'⏭️  Documentos pulados (já indexados): {documents_skipped}')
     logger.info(f'✗ Documentos com erro: {documents_with_errors}')
     logger.info(f'✓ Total de chunks indexados nesta sessão: {total_processed_chunks}')
     logger.info(f'✓ Total de vetores na coleção "{COLLECTION}": {total_in_db}')
