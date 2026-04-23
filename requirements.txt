@@ -30,7 +30,11 @@ transformers>=5.5.3,<6.0.0
 # BUSCA / RETRIEVAL
 # =========================
 qdrant-client>=1.17.1,<2.0.0
-rank-bm25>=0.2.2,<1.0.0
+bm25s>=0.2.0                   # preferred BM25 library (Phase 2)
+rank-bm25>=0.2.2,<1.0.0        # fallback BM25 — used directly in bm25_retriever.py
+nltk>=3.8                      # Portuguese stopwords tokenizer
+spacy>=3.7                     # optional: richer PT NLP pipeline
+pydantic>=2.0                  # RetrievalResult and future Pydantic models
 
 # =========================
 # API / BACKEND
@@ -61,3 +65,10 @@ tenacity>=9.1.4,<10.0.0
 # FILE SYSTEM / ARQUIVOS
 # =========================
 filetype>=1.2.0,<2.0.0
+
+# =========================
+# FASE 2 — NLTK / SPACY DATA
+# =========================
+# After installing, run once:
+#   python -m nltk.downloader stopwords punkt
+#   python -m spacy download pt_core_news_sm
