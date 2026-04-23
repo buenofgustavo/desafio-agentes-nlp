@@ -16,13 +16,13 @@ logger = LoggingService.setup_logger(__name__)
 class DocumentChunker:
     """Handles document chunking with parent-child hierarchy and context generation."""
     
-    PARENT_CHUNK_SIZE = 1000
-    PARENT_CHUNK_OVERLAP = 100
-    CHILD_CHUNK_SIZE = 300
-    CHILD_CHUNK_OVERLAP = 30
+    PARENT_CHUNK_SIZE = 3000
+    PARENT_CHUNK_OVERLAP = 300
+    CHILD_CHUNK_SIZE = 1000
+    CHILD_CHUNK_OVERLAP = 200
+    MIN_CHUNK_SIZE = 200
     
-    def __init__(self, use_context: bool = True):
-        self.use_context = use_context
+    def __init__(self):
         self._anthropic_client: Optional[anthropic.Anthropic] = None
         self.context_generator = ContextGenerator()
         self.parent_splitter = self._make_splitter(
@@ -49,13 +49,13 @@ class DocumentChunker:
             separators=["\n\n", "\n", ". ", " ", ""],
         )
     
-    def chunk_document(self, doc: Dict, meta: Dict) -> List[ChildChunk]:
+    def chunk_document(self, doc: Dict, meta: Dict, use_context: bool = False) -> List[ChildChunk]:
         """Main chunking pipeline with optional context generation."""
         # Phase 1: Build all chunks without context
         raw_chunks = self._build_raw_chunks(doc)
         
         # Phase 2: Generate contexts if enabled
-        contexts = self._generate_contexts(raw_chunks) if self.use_context else [""] * len(raw_chunks)
+        contexts = self._generate_contexts(raw_chunks) if use_context else [""] * len(raw_chunks)
         
         # Phase 3: Assemble final ChildChunk objects
         return self._assemble_chunks(raw_chunks, contexts, meta)
@@ -64,9 +64,14 @@ class DocumentChunker:
         """Create raw chunks from document pages."""
         raw_chunks = []
         for page in doc.get("pages", []):
-            parent_texts = self.parent_splitter.split_text(page["text"])
+            text = page.get("text")
+            if not text:
+                continue
+            parent_texts = self.parent_splitter.split_text(text)
             for p_idx, parent_text in enumerate(parent_texts):
-                for c_idx, child_text in enumerate(self.child_splitter.split_text(parent_text)):
+                child_texts = self.child_splitter.split_text(parent_text)
+                merged_children = self._merge_small_chunks(child_texts)
+                for c_idx, child_text in enumerate(merged_children):
                     raw_chunks.append({
                         "child_text": child_text,
                         "parent_text": parent_text,
@@ -75,6 +80,32 @@ class DocumentChunker:
                         "child_index": c_idx,
                     })
         return raw_chunks
+        
+    def _safely_merge_strings(self, s1: str, s2: str) -> str:
+        """Merges s2 into s1, avoiding overlapping duplications."""
+        max_overlap = min(len(s1), len(s2))
+        for i in range(max_overlap, 0, -1):
+            if s1.endswith(s2[:i]):
+                return s1 + s2[i:]
+        return s1 + " " + s2
+
+    def _merge_small_chunks(self, child_texts: List[str]) -> List[str]:
+        if not child_texts:
+            return []
+            
+        merged = []
+        for text in child_texts:
+            if not merged:
+                merged.append(text)
+                continue
+                
+            if len(text) < self.MIN_CHUNK_SIZE:
+                merged[-1] = self._safely_merge_strings(merged[-1], text)
+            elif len(merged[-1]) < self.MIN_CHUNK_SIZE:
+                merged[-1] = self._safely_merge_strings(merged[-1], text)
+            else:
+                merged.append(text)
+        return merged
     
     def _generate_contexts(self, raw_chunks: List[Dict]) -> List[str]:
         """Generate contexts for all chunks in batch."""

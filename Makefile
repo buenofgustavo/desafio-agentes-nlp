@@ -37,6 +37,9 @@ dataset:
 ingestion:
 	$(PYTHON) -m src.indexing.document_pipeline
 
+indexing:
+	$(PYTHON) -m scripts.run_indexing
+
 
 # ================== DADOS BRUTOS (.pdf, .htm, .xlsm, etc) ==================
 sync-data:
