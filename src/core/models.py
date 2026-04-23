@@ -146,5 +146,26 @@ class ChildChunk:
     publicacao: Optional[str]
     assunto: Optional[str]
     ementa: Optional[str]
-    
-    
+
+
+# ── Retrieval result model ─────────────────────────────────────────
+from typing import Literal  # noqa: E402  (already imported above, Literal added here)
+from pydantic import BaseModel
+
+
+class RetrievalResult(BaseModel):
+    """Result returned by all retrieval components.
+
+    Score fields are progressively populated through the pipeline:
+      - score:        raw retriever score (BM25 or cosine similarity)
+      - rrf_score:    fused RRF score (set by HybridRetriever)
+      - rerank_score: cross-encoder score (set by CrossEncoderReranker)
+    """
+
+    chunk_id: str
+    text: str
+    metadata: dict
+    score: float
+    source: Literal["bm25", "dense", "hybrid"]
+    rrf_score: float | None = None
+    rerank_score: float | None = None

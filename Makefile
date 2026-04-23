@@ -9,17 +9,21 @@ GCP_BUCKET_DOCLING_MARKDOWN_PATH = gs://aneel-raw-data/docling-markdowns/
 # Alvo padrão quando você digita apenas 'make'
 help:
 	@echo "Comandos disponíveis no projeto RAG Setor Elétrico:"
-	@echo "  make install  - Instala as dependências do projeto"
-	@echo "  make up       - Sobe o banco de dados (Qdrant) via Docker"
-	@echo "  make down     - Para e remove os containers do Docker"
-	@echo "  make dataset  - Baixa e extrai o dataset necessário para o projeto"
-	@echo "  make ingestion - Executa o pipeline de ingestão dos documentos"
-	@echo "  make sync-data  - Baixa os Documentos da Aneel que foram enviados pro bucket GCP (Acesso Público)"
-	@echo "  make upload-data - Envia os Documentos do disco para o bucket GCP (Acesso Privado, apenas para admins)"
-	@echo "  make sync-processed-json - Baixa os Documentos processados (JSON) do bucket GCP (Acesso Público)"
-	@echo "  make upload-processed-json - Envia os Documentos processados (JSON) do disco para o bucket GCP (Acesso Privado, apenas para admins)"
-	@echo "  make sync-docling-markdown - Baixa os Documentos processados (Docling Markdown) do bucket GCP (Acesso Público)"
-	@echo "  make upload-docling-markdown - Envia os Documentos processados (Docling Markdown) do disco para o bucket GCP (Acesso Privado, apenas para admins)"
+	@echo "  make install             - Instala as dependências do projeto"
+	@echo "  make up                  - Sobe o banco de dados (Qdrant) via Docker"
+	@echo "  make down                - Para e remove os containers do Docker"
+	@echo "  make dataset             - Baixa e extrai o dataset necessário para o projeto"
+	@echo "  make ingestion           - Executa o pipeline de ingestião dos documentos"
+	@echo "  make indexing            - Gera embeddings e indexa no Qdrant"
+	@echo ""
+	@echo "  make build-bm25          - Constrói e persiste o índice BM25 (requer Qdrant ativo)"
+	@echo "  make generate-benchmark  - Anota golden_chunk_ids no benchmark via busca densa"
+	@echo "  make eval-retrieval      - Avalia baseline vs hybrid+reranker e gera relatório"
+	@echo ""
+	@echo "  make sync-data           - Baixa os Documentos da Aneel do bucket GCP"
+	@echo "  make upload-data         - Envia os Documentos para o bucket GCP"
+	@echo "  make sync-processed-json - Baixa os JSONs processados do bucket GCP"
+	@echo "  make sync-docling-markdown - Baixa os Markdowns Docling do bucket GCP"
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -40,6 +44,20 @@ ingestion:
 indexing:
 	$(PYTHON) -m scripts.run_indexing
 
+# ── Fase 2: Recuperação Híbrida ───────────────────────────────────────────
+
+build-bm25:
+	@echo "Construindo índice BM25 a partir do Qdrant..."
+	$(PYTHON) -m src.retrieval.bm25_retriever --rebuild
+
+generate-benchmark:
+	@echo "Anotando benchmark com golden_chunk_ids via busca densa..."
+	$(PYTHON) scripts/generate_benchmark.py
+
+eval-retrieval:
+	$(PYTHON) scripts/run_retrieval_eval.py \
+		--benchmark data/processed/benchmark.json \
+		--output data/processed/retrieval_report.json
 
 # ================== DADOS BRUTOS (.pdf, .htm, .xlsm, etc) ==================
 sync-data:
