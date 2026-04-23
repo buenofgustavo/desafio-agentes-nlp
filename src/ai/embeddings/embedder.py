@@ -29,7 +29,7 @@ def embed_chunks(texts: List[str]) -> List[List[float]]:
         prefixed,
         batch_size=32,
         show_progress_bar=False,
-        normalize_embeddings=True,  # necessário para similaridade coseno
+        normalize_embeddings=True,
     ).tolist()
 
 def embed_query(query: str) -> List[float]:
