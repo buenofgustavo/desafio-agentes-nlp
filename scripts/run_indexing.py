@@ -16,7 +16,7 @@ from qdrant_client.models import PointStruct
 from src.indexing.storage.processed_store import load_all_processed
 from src.indexing.processing.chunker.chunker import DocumentChunker
 from src.ai.embeddings.embedder import embed_chunks
-from src.indexing.storage.vector_store import get_client, create_collection
+from src.indexing.storage.vector_store import get_qdrant_client, create_collection
 from src.utils.logger import LoggingService
 from src.core.models import ChildChunk
 
@@ -34,7 +34,7 @@ def _generate_deterministic_id(chunk: ChildChunk) -> str:
 def run_indexing():
     logger.info('Criando coleção no Qdrant...')
     create_collection(COLLECTION)
-    client = get_client()
+    client = get_qdrant_client()
 
     logger.info('Carregando processed JSONs...')
     documents = load_all_processed()
