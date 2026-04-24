@@ -1,5 +1,5 @@
 # Variáveis
-PYTHON = python3
+PYTHON = python
 PIP = pip
 DOCKER = docker-compose
 GCP_BUCKET_DOCUMENTS_PATH = gs://aneel-raw-data/aneel-documents/

@@ -5,13 +5,13 @@ from typing import List, Dict, Any
 
 from src.core.models import AneelRecord, ProcessedDocument, PdfDocument
 from src.core.config import Constants
-from src.indexing.processing.base_processor import BaseProcessor
-from src.indexing.processing.extractor.pdf_extractor import PdfExtractor
-from src.indexing.processing.extractor.docx_extractor import DocxExtractor
-from src.indexing.processing.extractor.spreadsheet_extractor import SpreadsheetExtractor
-from src.indexing.processing.extractor.html_extractor import HtmlExtractor
-from src.indexing.processing.extractor.zip_extractor import ZipExtractor
-from src.indexing.processing.extractor.rar_extractor import RarExtractor
+from scripts.documents.base_processor import BaseProcessor
+from scripts.documents.extractor.pdf_extractor import PdfExtractor
+from scripts.documents.extractor.docx_extractor import DocxExtractor
+from scripts.documents.extractor.spreadsheet_extractor import SpreadsheetExtractor
+from scripts.documents.extractor.html_extractor import HtmlExtractor
+from scripts.documents.extractor.zip_extractor import ZipExtractor
+from scripts.documents.extractor.rar_extractor import RarExtractor
 from src.utils.file_utils import FileManager
 from src.utils.logger import LoggingService
 

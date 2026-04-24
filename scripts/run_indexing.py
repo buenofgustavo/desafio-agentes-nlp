@@ -14,8 +14,8 @@ from dataclasses import asdict
 sys.path.append(str(Path(__file__).parent.parent))
 
 from qdrant_client.models import PointStruct
-from src.indexing.storage.processed_store import load_all_processed
-from src.indexing.processing.chunker.chunker import DocumentChunker
+from src.utils.processed_store import load_all_processed
+from src.indexing.chunker.chunker import DocumentChunker
 from src.ai.embeddings.embedder import embed_chunks
 from src.indexing.storage.vector_store import get_qdrant_client, create_collection
 from src.utils.logger import LoggingService

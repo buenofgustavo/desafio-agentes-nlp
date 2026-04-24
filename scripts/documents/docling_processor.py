@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 
 from src.core.models import AneelRecord, ProcessedDocument, PdfDocument
 from src.core.config import Constants
-from src.indexing.processing.base_processor import BaseProcessor
+from scripts.documents.base_processor import BaseProcessor
 from src.utils.logger import LoggingService
 from src.utils.file_utils import FileManager
 

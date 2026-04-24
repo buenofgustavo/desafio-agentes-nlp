@@ -5,7 +5,7 @@ import anthropic
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
 from src.utils.logger import LoggingService
-from src.indexing.processing.chunker.context_generator import ContextGenerator, ContextRequest
+from src.indexing.chunker.context_generator import ContextGenerator, ContextRequest
 from src.core.models import ChildChunk
 
 load_dotenv()
@@ -16,11 +16,13 @@ logger = LoggingService.setup_logger(__name__)
 class DocumentChunker:
     """Handles document chunking with parent-child hierarchy and context generation."""
     
-    PARENT_CHUNK_SIZE = 3000
-    PARENT_CHUNK_OVERLAP = 300
-    CHILD_CHUNK_SIZE = 1000
-    CHILD_CHUNK_OVERLAP = 200
-    MIN_CHUNK_SIZE = 200
+    PARENT_CHUNK_SIZE = 1500
+    PARENT_CHUNK_OVERLAP = 150
+
+    CHILD_CHUNK_SIZE = 400
+    CHILD_CHUNK_OVERLAP = 50
+
+    MIN_CHUNK_SIZE = 100
     
     def __init__(self):
         self._anthropic_client: Optional[anthropic.Anthropic] = None
@@ -32,6 +34,45 @@ class DocumentChunker:
             self.CHILD_CHUNK_SIZE, self.CHILD_CHUNK_OVERLAP
         )
     
+    @staticmethod
+    def run(documents):
+        """
+        Recebe documentos processados e retorna chunks.
+        """
+
+        chunker = DocumentChunker()
+        all_chunks = []
+
+        for doc in documents:
+            doc_dict = {
+                "pages": [
+                    {"page": 1, "text": doc.texto_documento}
+                ]
+            }
+
+            meta_dict = {
+                "source_file": doc.arquivo_origem,
+                "titulo": doc.titulo,
+                "autor": doc.autor,
+                "material": doc.material,
+                "esfera": doc.esfera,
+                "situacao": doc.situacao,
+                "assinatura": doc.assinatura,
+                "publicacao": doc.publicacao,
+                "assunto": doc.assunto,
+                "ementa": doc.ementa
+            }
+
+            chunks = chunker.chunk_document(
+                doc_dict,
+                meta=meta_dict,
+                use_context=False
+            )
+
+            all_chunks.extend(chunks)
+
+        return all_chunks
+
     def get_client(self) -> anthropic.Anthropic:
         if self._anthropic_client is None:
             self._anthropic_client = anthropic.Anthropic(

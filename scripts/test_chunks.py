@@ -6,8 +6,8 @@ from pathlib import Path
 # Configura path para importar módulos src
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.indexing.storage.processed_store import load_all_processed
-from src.indexing.processing.chunker.chunker import DocumentChunker
+from src.utils.processed_store import load_all_processed
+from src.indexing.chunker.chunker import DocumentChunker
 from src.utils.logger import LoggingService
 
 logger = LoggingService.setup_logger(__name__)
