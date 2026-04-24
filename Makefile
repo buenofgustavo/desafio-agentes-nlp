@@ -23,6 +23,12 @@ help:
 	@echo "  make run-agent           - Executa o agente RAG em modo interativo"
 	@echo "  make run-agent-batch     - Executa o agente em batch no benchmark"
 	@echo ""
+	@echo ""
+	@echo "  make infra               - Sobe apenas o Qdrant via Docker"
+	@echo "  make demo                - Sobe o demo completo (Qdrant + API)"
+	@echo "  make ui                  - Inicia o Streamlit (requer API rodando)"
+	@echo "  make stop                - Para todos os serviços Docker"
+	@echo ""
 	@echo "  make sync-data           - Baixa os Documentos da Aneel do bucket GCP"
 	@echo "  make upload-data         - Envia os Documentos para o bucket GCP"
 	@echo "  make sync-processed-json - Baixa os JSONs processados do bucket GCP"
@@ -107,3 +113,20 @@ sync-docling-markdown:
 	
 	time gcloud storage rsync $(GCP_BUCKET_DOCLING_MARKDOWN_PATH) data/raw/docling_markdown/ --recursive
 # ============================================================================
+# ── Fase 6: Demo ──────────────────────────────────────────────────────────────
+
+# Start Qdrant only (infrastructure)
+infra:
+	$(DOCKER) up -d qdrant
+
+# Start full demo (Qdrant + API)
+demo:
+	$(DOCKER) up -d
+
+# Run Streamlit UI (requires API running at localhost:8000)
+ui:
+	streamlit run app/ui.py
+
+# Stop all services
+stop:
+	$(DOCKER) down

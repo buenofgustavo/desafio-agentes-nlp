@@ -39,7 +39,7 @@ class Constants:
 	RERANKER_TOP_K: int = int(os.getenv("RERANKER_TOP_K", "5"))
 
 	# ─ Agent / LLM ─────────────────────────────────────────────────
-	CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-latest")
+	CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6-20260217")
 	LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 	LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.0"))
 
@@ -49,3 +49,9 @@ class Constants:
 	MULTIHOP_MAX_ROUNDS: int = int(os.getenv("MULTIHOP_MAX_ROUNDS", "3"))
 	HYDE_ENABLED: bool = os.getenv("HYDE_ENABLED", "true").lower() == "true"
 	QUERY_REFORMULATIONS: int = int(os.getenv("QUERY_REFORMULATIONS", "2"))
+	# ─ API (Phase 6) ───────────────────────────────────────────────
+	API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
+	API_PORT: int = int(os.getenv("API_PORT", "8000"))
+	EVALUATION_REPORT_PATH: Path = DATA_DIR / os.getenv(
+		"EVALUATION_REPORT_PATH", "evaluation/final_report.json"
+	)
