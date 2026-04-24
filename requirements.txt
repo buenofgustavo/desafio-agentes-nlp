@@ -75,3 +75,8 @@ filetype>=1.2.0,<2.0.0
 # After installing, run once:
 #   python -m nltk.downloader stopwords punkt
 #   python -m spacy download pt_core_news_sm
+
+# =========================
+# FASE 6 — DEMO
+# =========================
+httpx>=0.27.0              # Streamlit → API HTTP calls
