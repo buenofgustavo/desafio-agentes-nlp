@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Environments
+.env
+venv
+env
+.venv
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Data and logs (mounted via volumes)
+data/
+logs/
+*.log
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# IDEs
+.vscode/
+.idea/
