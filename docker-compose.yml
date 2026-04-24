@@ -10,7 +10,6 @@ services:
     restart: unless-stopped
     environment:
       - QDRANT__SERVICE__HTTP_PORT=6333
-      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
 
   api:
     build: .
