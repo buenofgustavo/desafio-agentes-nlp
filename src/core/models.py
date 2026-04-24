@@ -169,3 +169,34 @@ class RetrievalResult(BaseModel):
     source: Literal["bm25", "dense", "hybrid"]
     rrf_score: float | None = None
     rerank_score: float | None = None
+
+
+# ── Agent LLM response models ───────────────────────────────────────────────
+
+
+class QueryAnalysis(BaseModel):
+    """Structured response from the query_analyzer node.
+
+    The LLM returns JSON with this shape; Pydantic validates and
+    coerces it — unknown fields are ignored, missing optional fields
+    get sensible defaults.
+    """
+
+    query_type: Literal["simple", "comparative", "multi_hop"] = "simple"
+    reasoning: str = ""
+
+
+class FaithfulnessResult(BaseModel):
+    """Structured response from the faithfulness_check node."""
+
+    is_grounded: bool = True
+    score: float = 0.0
+    reasoning: str = ""
+    unsupported_claims: list[str] = []
+
+
+class MultiHopSubQuery(BaseModel):
+    """Structured response from the multi-hop sub-query generator."""
+
+    sub_query: str
+    reasoning: str = ""

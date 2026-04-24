@@ -20,6 +20,9 @@ help:
 	@echo "  make generate-benchmark  - Anota golden_chunk_ids no benchmark via busca densa"
 	@echo "  make eval-retrieval      - Avalia baseline vs hybrid+reranker e gera relatório"
 	@echo ""
+	@echo "  make run-agent           - Executa o agente RAG em modo interativo"
+	@echo "  make run-agent-batch     - Executa o agente em batch no benchmark"
+	@echo ""
 	@echo "  make sync-data           - Baixa os Documentos da Aneel do bucket GCP"
 	@echo "  make upload-data         - Envia os Documentos para o bucket GCP"
 	@echo "  make sync-processed-json - Baixa os JSONs processados do bucket GCP"
@@ -56,8 +59,18 @@ generate-benchmark:
 
 eval-retrieval:
 	$(PYTHON) scripts/run_retrieval_eval.py \
-		--benchmark data/processed/benchmark.json \
-		--output data/processed/retrieval_report.json
+		--benchmark data/retrieval/benchmark.json \
+		--output data/retrieval/retrieval_report.json
+
+# ── Fase 4: Agente LangGraph ─────────────────────────────────────────────
+
+run-agent:
+	$(PYTHON) scripts/run_agent.py
+
+run-agent-batch:
+	$(PYTHON) scripts/run_agent.py \
+		--batch data/retrieval/benchmark.json \
+		--output data/retrieval/agent_answers.json
 
 # ================== DADOS BRUTOS (.pdf, .htm, .xlsm, etc) ==================
 sync-data:
