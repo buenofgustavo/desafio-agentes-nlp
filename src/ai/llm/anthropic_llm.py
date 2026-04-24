@@ -28,6 +28,7 @@ class AnthropicLLM(BaseLLM):
         response = self.client.messages.create(
             model=self.model,
             max_tokens=max_tokens,
+            temperature=temperature,
             messages=[{
                 "role": "user",
                 "content": f"{system_prompt}\n\n{prompt}"

@@ -30,10 +30,22 @@ class Constants:
 		"cross-encoder/ms-marco-multilingual-rerank-mmarco-v2",
 	)
 	BM25_INDEX_PATH: Path = BASE_DIR / os.getenv(
-		"BM25_INDEX_PATH", "data/processed/bm25_index.pkl"
+		"BM25_INDEX_PATH", "data/retrieval/bm25_index.pkl"
 	)
 	BM25_TOP_K: int = int(os.getenv("BM25_TOP_K", "20"))
 	DENSE_TOP_K: int = int(os.getenv("DENSE_TOP_K", "20"))
 	RRF_K: int = int(os.getenv("RRF_K", "60"))
 	HYBRID_FINAL_TOP_K: int = int(os.getenv("HYBRID_FINAL_TOP_K", "10"))
 	RERANKER_TOP_K: int = int(os.getenv("RERANKER_TOP_K", "5"))
+
+	# ─ Agent / LLM ─────────────────────────────────────────────────
+	CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-latest")
+	LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "4096"))
+	LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.0"))
+
+	# ─ Agent behavior ──────────────────────────────────────────────
+	MAX_FAITHFULNESS_RETRIES: int = int(os.getenv("MAX_FAITHFULNESS_RETRIES", "2"))
+	CONTEXT_MAX_TOKENS: int = int(os.getenv("CONTEXT_MAX_TOKENS", "6000"))
+	MULTIHOP_MAX_ROUNDS: int = int(os.getenv("MULTIHOP_MAX_ROUNDS", "3"))
+	HYDE_ENABLED: bool = os.getenv("HYDE_ENABLED", "true").lower() == "true"
+	QUERY_REFORMULATIONS: int = int(os.getenv("QUERY_REFORMULATIONS", "2"))
