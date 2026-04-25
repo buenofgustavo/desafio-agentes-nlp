@@ -186,3 +186,4 @@ desafio-agentes-nlp/
 
 - **Igor Reis Braziel** — [braziel@discente.ufg.br](mailto:braziel@discente.ufg.br)
 - **Gustavo Bueno Ferreira** — [gustavobueno2@discente.ufg.br](mailto:gustavobueno2@discente.ufg.br)
+- **Breno Machado Barros** - [breno_machado@discente.ufg.br](mailto:breno_machado@discente.ufg.br)
