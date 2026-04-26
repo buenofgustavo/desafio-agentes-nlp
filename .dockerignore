@@ -20,6 +20,9 @@ data/
 logs/
 *.log
 
+# BM25 index
+!data/retrieval/bm25_index/
+
 # Docker
 docker-compose.yml
 Dockerfile
