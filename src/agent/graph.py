@@ -1,9 +1,9 @@
-"""LangGraph state machine for the RAG agent.
+"""Máquina de estado LangGraph para o agente RAG.
 
-Defines and compiles the graph connecting the 7 nodes with conditional
-edges for faithfulness retries and multi-hop loops.
+Define e compila o grafo conectando os 7 nós com arestas condicionais
+para tentativas de fidelidade e loops multi-hop.
 
-Usage::
+Uso::
 
     from src.agent.graph import agent_graph
 
@@ -30,67 +30,67 @@ logger = LoggingService.setup_logger(__name__)
 
 
 def route_after_faithfulness(state: AgentState) -> str:
-    """Routing logic after faithfulness check.
+    """Lógica de roteamento após a verificação de fidelidade.
 
-    Decision tree:
-        1. If grounded → END
-        2. If not grounded and faithfulness retries remain → retry
-           (go back to faithfulness_check, which will correct the answer)
-        3. If multi_hop and retrieval rounds remain → go back to
-           query_expander for another retrieval round
-        4. Otherwise → END (with warning logged)
+    Árvore de decisão:
+        1. Se fundamentada (grounded) → END
+        2. Se não fundamentada e restarem tentativas de fidelidade → retry
+           (volta para o faithfulness_check, que corrigirá a resposta)
+        3. Se for multi-hop e restarem rodadas de recuperação → volta para
+           o query_expander para outra rodada de busca
+        4. Caso contrário → END (com log de aviso)
 
     Args:
-        state: Current agent state after faithfulness_check.
+        state: Estado atual do agente após faithfulness_check.
 
     Returns:
-        One of ``"end"``, ``"retry_faithfulness"``, or ``"retry_multihop"``.
+        Um entre ``"end"``, ``"retry_faithfulness"`` ou ``"retry_multihop"``.
     """
     is_grounded = state.get("is_grounded", False)
     retries = state.get("faithfulness_retries", 0)
     query_type = state.get("query_type", "simple")
     retrieval_round = state.get("retrieval_round", 1)
 
-    # 1. Grounded → done
+    # 1. Fundamentada → finalizado
     if is_grounded:
-        logger.info("route: resposta grounded — finalizando")
+        logger.info("route: resposta fundamentada — finalizando")
         return "end"
 
-    # 2. Not grounded + faithfulness retries remaining
+    # 2. Não fundamentada + tentativas de fidelidade restantes
     if retries < Constants.MAX_FAITHFULNESS_RETRIES:
         logger.info(
-            "route: não grounded — retry faithfulness (%d/%d)",
+            "route: não fundamentada — retry faithfulness (%d/%d)",
             retries + 1,
             Constants.MAX_FAITHFULNESS_RETRIES,
         )
         return "retry_faithfulness"
 
-    # 3. Multi-hop + retrieval rounds remaining
+    # 3. Multi-hop + rodadas de recuperação restantes
     if query_type == "multi_hop" and retrieval_round < Constants.MULTIHOP_MAX_ROUNDS:
         logger.info(
-            "route: multi-hop — nova rodada de retrieval (%d/%d)",
+            "route: multi-hop — nova rodada de busca (%d/%d)",
             retrieval_round + 1,
             Constants.MULTIHOP_MAX_ROUNDS,
         )
         return "retry_multihop"
 
-    # 4. Exhausted all options
+    # 4. Opções esgotadas
     logger.warning(
-        "route: não grounded e sem retries/rounds restantes — "
-        "finalizando com melhor resposta disponível"
+        "route: não fundamentada e sem tentativas restantes — "
+        "finalizando com a melhor resposta disponível"
     )
     return "end"
 
 
 def build_graph() -> StateGraph:
-    """Build and compile the LangGraph agent graph.
+    """Constrói e compila o grafo do agente LangGraph.
 
     Returns:
-        A compiled graph ready for invocation via ``.invoke()``.
+        Um grafo compilado pronto para invocação via ``.invoke()``.
     """
     graph = StateGraph(AgentState)
 
-    # ── Register nodes ─────────────────────────────────────────────
+    # ── Registro dos nós ───────────────────────────────────────────
     graph.add_node("query_analyzer", query_analyzer)
     graph.add_node("query_expander", query_expander)
     graph.add_node("retriever", retriever)
@@ -99,10 +99,10 @@ def build_graph() -> StateGraph:
     graph.add_node("generator", generator)
     graph.add_node("faithfulness_check", faithfulness_check)
 
-    # ── Entry point ────────────────────────────────────────────────
+    # ── Ponto de entrada ───────────────────────────────────────────
     graph.set_entry_point("query_analyzer")
 
-    # ── Linear edges ───────────────────────────────────────────────
+    # ── Arestas lineares ───────────────────────────────────────────
     graph.add_edge("query_analyzer", "query_expander")
     graph.add_edge("query_expander", "retriever")
     graph.add_edge("retriever", "reranker")
@@ -110,7 +110,7 @@ def build_graph() -> StateGraph:
     graph.add_edge("context_assembler", "generator")
     graph.add_edge("generator", "faithfulness_check")
 
-    # ── Conditional edge: faithfulness → END or loop ───────────────
+    # ── Aresta condicional: fidelidade → END ou loop ───────────────
     graph.add_conditional_edges(
         "faithfulness_check",
         route_after_faithfulness,
@@ -125,5 +125,5 @@ def build_graph() -> StateGraph:
     return graph.compile()
 
 
-# ── Module-level singleton ─────────────────────────────────────────────────
+# ── Singleton em nível de módulo ───────────────────────────────────────────
 agent_graph = build_graph()

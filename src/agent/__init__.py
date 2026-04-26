@@ -1,8 +1,8 @@
-"""Phase 4 — LangGraph Agentic Layer.
+"""Camada de Agente LangGraph.
 
-Exposes the compiled agent graph and the build function.
+Expõe o grafo do agente compilado e a função de construção.
 
-Usage::
+Uso::
 
     from src.agent.graph import agent_graph
 

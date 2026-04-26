@@ -1,9 +1,9 @@
-"""Streamlit UI for the RAG demo.
+"""Interface Streamlit para a demonstração RAG.
 
-All data fetching is done via HTTP to the FastAPI API at http://localhost:8000.
-This file must NOT import from src/agent/ or any heavy backend module directly.
+Toda a busca de dados é feita via HTTP para a API FastAPI em http://localhost:8000.
+Este arquivo NÃO deve importar de src/agent/ ou de qualquer módulo pesado do backend diretamente.
 
-Usage:
+Uso:
     streamlit run app/ui.py
 """
 from __future__ import annotations
@@ -11,10 +11,11 @@ from __future__ import annotations
 import httpx
 import streamlit as st
 
-# ── Configuration ──────────────────────────────────────────────────────────
+# ── Configuração ──────────────────────────────────────────────────────────
+import os
 
-API_BASE = "http://localhost:8000"
-QUERY_TIMEOUT = 60  # seconds
+API_BASE = os.getenv("API_URL", "http://api:8000")
+QUERY_TIMEOUT = 180  # segundos
 
 st.set_page_config(
     page_title="RAG — Setor Elétrico Brasileiro",
@@ -22,44 +23,21 @@ st.set_page_config(
     layout="wide",
 )
 
-# ── Header ─────────────────────────────────────────────────────────────────
+# ── Cabeçalho ───────────────────────────────────────────────────────────────
 
 st.title("⚡ RAG — Setor Elétrico Brasileiro")
 st.caption(
     "Sistema de perguntas e respostas sobre documentos regulatórios do setor elétrico "
-    "brasileiro (ANEEL, ONS, PRODIST) com agente LangGraph e recuperação híbrida."
+    "brasileiro (ANEEL) com agente LangGraph e recuperação híbrida."
 )
 st.divider()
 
-# ── Sidebar: metrics ───────────────────────────────────────────────────────
+# ── Barra lateral ──────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.header("📊 Métricas de Avaliação")
-    try:
-        resp = httpx.get(f"{API_BASE}/metrics", timeout=5)
-        data = resp.json()
-        if data.get("status") in ("evaluation not run", "error reading report"):
-            st.info("Avaliação não executada")
-        else:
-            # Display numeric values as progress bars
-            displayed = False
-            for key, value in data.items():
-                if isinstance(value, (int, float)) and 0.0 <= value <= 1.0:
-                    st.metric(label=key, value=f"{value:.2%}")
-                    st.progress(float(value))
-                    displayed = True
-                elif isinstance(value, (int, float)):
-                    st.metric(label=key, value=value)
-                    displayed = True
-            if not displayed:
-                st.json(data)
-    except Exception:
-        st.warning("API indisponível — métricas não carregadas")
-
-    st.divider()
     st.caption("Powered by LangGraph + Claude + Qdrant")
 
-# ── Health check indicator ─────────────────────────────────────────────────
+# ── Indicador de saúde do sistema ──────────────────────────────────────────
 
 try:
     health = httpx.get(f"{API_BASE}/health", timeout=5).json()
@@ -68,20 +46,17 @@ try:
     col1.metric("API", "🟢 Online")
     col2.metric("Qdrant", "🟢 Conectado" if qdrant_ok else "🔴 Desconectado")
 except Exception:
-    st.error("⚠️ API offline — certifique-se de que `make demo` está rodando.")
+    st.error("⚠️ API offline.")
 
 st.divider()
 
-# ── Query input ────────────────────────────────────────────────────────────
+# ── Entrada de pergunta ───────────────────────────────────────────────────
 
 question = st.text_area(
     label="Sua pergunta",
-    placeholder="Ex: Qual é o prazo mínimo para revisão tarifária no PRODIST?",
     height=120,
     key="question_input",
 )
-
-
 
 submit = st.button(
     "⚡ Perguntar",
@@ -90,10 +65,10 @@ submit = st.button(
     use_container_width=True,
 )
 
-# ── Query execution & response ─────────────────────────────────────────────
+# ── Execução da consulta e resposta ────────────────────────────────────────
 
 if submit and question.strip():
-    with st.spinner("Consultando o agente RAG… (pode levar até 60s)"):
+    with st.spinner("Consultando o agente RAG…"):
         try:
             response = httpx.post(
                 f"{API_BASE}/query",
@@ -104,11 +79,11 @@ if submit and question.strip():
             if response.status_code == 200:
                 data = response.json()
 
-                # ── Answer ────────────────────────────────────────────────
+                # ── Resposta ──────────────────────────────────────────────
                 st.subheader("💬 Resposta")
                 st.info(data["answer"])
 
-                # ── Metrics row ───────────────────────────────────────────
+                # ── Métricas ──────────────────────────────────────────────
                 m1, m2, m3 = st.columns(3)
                 m1.metric(
                     "Tipo de consulta",
@@ -124,14 +99,14 @@ if submit and question.strip():
                     f"{data.get('latency_seconds', 0):.1f}s",
                 )
 
-                # ── Groundedness badge ────────────────────────────────────
+                # ── Badge de fundamentação ────────────────────────────────
                 is_grounded = data.get("is_grounded", False)
                 if is_grounded:
                     st.success("✅ Resposta fundamentada nos documentos")
                 else:
                     st.warning("⚠️ Resposta pode conter informações não verificadas")
 
-                # ── Sources ───────────────────────────────────────────────
+                # ── Fontes ────────────────────────────────────────────────
                 sources = data.get("sources", [])
                 if sources:
                     with st.expander(f"📚 Fontes ({len(sources)} chunks)"):

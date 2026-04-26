@@ -1,10 +1,9 @@
-"""Unified retrieval pipeline.
+"""Pipeline de recuperação unificado.
 
-This is the **single import point** for LangGraph agent.
-It wires together BM25, dense, hybrid, and cross-encoder reranking from
-``Constants`` and degrades gracefully if the BM25 index is absent.
+Este é o **ponto de importação único** para o agente LangGraph.
+Conecta o BM25, busca densa, híbrida e reordenação (reranking) por cross-encoder.
 
-Usage::
+Uso::
 
     from src.retrieval.retrieval_pipeline import RetrievalPipeline
 
@@ -25,33 +24,36 @@ logger = LoggingService.setup_logger(__name__)
 
 
 class RetrievalPipeline:
-    """End-to-end retrieval pipeline: hybrid retrieval → cross-encoder reranking.
+    """Pipeline de recuperação ponta a ponta: busca híbrida → reordenação por cross-encoder.
 
-    Initialization loads all components from config values in ``Constants``.
-    If the BM25 index file is absent, a ``WARNING`` is logged and the
-    pipeline continues in dense-only mode — it **never raises** during init.
-
-    This class is the only import Phase 4 needs from the retrieval layer.
+    A inicialização carrega todos os componentes a partir dos valores de configuração.
     """
 
     def __init__(self) -> None:
-        """Initialize all retrieval components from config. Never raises."""
-        logger.info("Inicializando RetrievalPipeline…")
+        """Inicializa todos os componentes de recuperação a partir da configuração em paralelo."""
+        import concurrent.futures
+        logger.info("Inicializando RetrievalPipeline em paralelo…")
 
-        # ── Dense retriever (always available) ──────────────────────────
-        self._dense = SemanticSearch(top_k=Constants.DENSE_TOP_K)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            # ── Dispara o carregamento dos componentes em paralelo ────────
+            f_dense = executor.submit(SemanticSearch, top_k=Constants.DENSE_TOP_K)
+            f_bm25 = executor.submit(BM25Retriever)
+            f_reranker = executor.submit(CrossEncoderReranker, top_k=Constants.RERANKER_TOP_K)
 
-        # ── BM25 retriever (may be unavailable) ─────────────────────────
-        self._bm25 = BM25Retriever()
+            # ── Aguarda a conclusão e atribui à instância ────────────────
+            self._dense = f_dense.result()
+            self._bm25 = f_bm25.result()
+            self._reranker = f_reranker.result()
+
+        # ── Combinador híbrido (depende dos anteriores, mas é rápido) ─────
         if not self._bm25.is_built:
             logger.warning(
                 "RetrievalPipeline: índice BM25 ausente — "
-                "pipeline operará em modo dense-only. "
+                "pipeline operará em modo apenas denso. "
                 "Execute 'python -m src.retrieval.bm25_retriever --rebuild' "
                 "para habilitar busca híbrida."
             )
 
-        # ── Hybrid combiner ──────────────────────────────────────────────
         self._hybrid = HybridRetriever(
             bm25_retriever=self._bm25,
             dense_retriever=self._dense,
@@ -61,29 +63,20 @@ class RetrievalPipeline:
             final_top_k=Constants.HYBRID_FINAL_TOP_K,
         )
 
-        # ── Cross-encoder reranker ───────────────────────────────────────
-        self._reranker = CrossEncoderReranker(top_k=Constants.RERANKER_TOP_K)
-
         logger.info("RetrievalPipeline pronto.")
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def run(self, query: str) -> list[RetrievalResult]:
-        """Execute the full retrieval pipeline for a query.
+        """Executa o pipeline de recuperação completo para uma query.
 
-        Steps:
-            1. Hybrid retrieval (BM25 + dense + RRF fusion).
-            2. Cross-encoder reranking of the fused candidates.
+        Passos:
+            1. Recuperação híbrida (BM25 + denso + fusão RRF).
+            2. Reordenação por cross-encoder dos candidatos fundidos.
 
         Args:
-            query: The user search query (plain Portuguese text).
+            query: A query de busca do usuário (texto simples em português).
 
         Returns:
-            Top ``RERANKER_TOP_K`` ``RetrievalResult`` objects with all score
-            fields (``score``, ``rrf_score``, ``rerank_score``) populated,
-            sorted by ``rerank_score`` descending.
+            Lista de objetos ``RetrievalResult`` ordenados por ``rerank_score`` decrescente.
         """
         logger.info(f"RetrievalPipeline.run: '{query[:80]}'")
 
@@ -98,11 +91,7 @@ class RetrievalPipeline:
         logger.info(f"RetrievalPipeline: {len(reranked)} resultado(s) finais")
         return reranked
 
-    # ------------------------------------------------------------------
-    # Accessors for evaluation script
-    # ------------------------------------------------------------------
-
     @property
     def dense(self) -> SemanticSearch:
-        """Expose the dense retriever for the baseline evaluation."""
+        """Expõe o recuperador denso para a avaliação baseline."""
         return self._dense

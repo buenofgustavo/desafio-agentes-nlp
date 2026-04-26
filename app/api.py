@@ -1,17 +1,8 @@
-"""FastAPI REST API for the RAG agent.
+"""API REST FastAPI para o agente RAG.
 
-Exposes three endpoints:
-    GET  /health   — system status including Qdrant connectivity
-    POST /query    — runs the full LangGraph agent and returns a structured response
-    GET  /metrics  — returns the latest evaluation report if available
-
-Architecture notes:
-    - RetrievalPipeline and agent_graph are initialized ONCE at startup via
-      FastAPI lifespan events and stored in ``app.state``.
-    - The /query handler runs the synchronous agent in a ThreadPoolExecutor
-      to avoid blocking the async event loop.
-    - Every response carries a ``X-Request-ID`` header for traceability.
-    - No authentication — this is a demo.
+Expõe dois endpoints:
+    GET  /health   — status do sistema, incluindo conectividade com Qdrant
+    POST /query    — executa o agente LangGraph completo e retorna uma resposta estruturada
 """
 from __future__ import annotations
 
@@ -36,7 +27,8 @@ from src.utils.logger import LoggingService
 
 logger = LoggingService.setup_logger(__name__)
 
-# ── Pydantic models ────────────────────────────────────────────────────────
+
+# ── Modelos Pydantic ───────────────────────────────────────────────────────
 
 
 class QueryRequest(BaseModel):
@@ -54,21 +46,21 @@ class QueryResponse(BaseModel):
     latency_seconds: float
 
 
-# ── Lifespan: initialize singletons once ──────────────────────────────────
+# ── Lifespan: inicializa singletons uma única vez ──────────────────────────
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize heavy components once at startup; clean up at shutdown."""
+    """Inicializa componentes pesados no startup; limpa no shutdown."""
     logger.info("API: inicializando componentes (lifespan startup)…")
 
-    # RetrievalPipeline — loads embedding model + BM25 + cross-encoder
+    # RetrievalPipeline — carrega modelo de embedding + BM25 + cross-encoder
     app.state.retrieval_pipeline = RetrievalPipeline()
 
-    # ThreadPoolExecutor — used to run the synchronous agent off the event loop
+    # ThreadPoolExecutor — usado para rodar o agente síncrono fora do event loop
     app.state.executor = ThreadPoolExecutor(max_workers=4)
 
-    # agent_graph is a module-level singleton imported from graph.py
+    # agent_graph é um singleton em nível de módulo importado de graph.py
     app.state.agent_graph = agent_graph
 
     logger.info("API: todos os componentes prontos.")
@@ -79,7 +71,7 @@ async def lifespan(app: FastAPI):
     logger.info("API: shutdown concluído.")
 
 
-# ── FastAPI application ────────────────────────────────────────────────────
+# ── Aplicação FastAPI ──────────────────────────────────────────────────────
 
 app = FastAPI(
     title="RAG — Setor Elétrico Brasileiro",
@@ -89,12 +81,12 @@ app = FastAPI(
 )
 
 
-# ── Middleware: X-Request-ID header ───────────────────────────────────────
+# ── Middleware: cabeçalho X-Request-ID ─────────────────────────────────────
 
 
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
-    """Attach a unique X-Request-ID to every response and log the request."""
+    """Anexa um X-Request-ID único a cada resposta e loga a requisição."""
     request_id = str(uuid.uuid4())
     start = time.perf_counter()
     response = await call_next(request)
@@ -111,26 +103,25 @@ async def add_request_id(request: Request, call_next):
     return response
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────
+# ── Auxiliares ─────────────────────────────────────────────────────────────
 
 
 def _check_qdrant() -> str:
-    """Return 'connected' or 'error: <detail>' by probing the Qdrant REST API."""
+    """Retorna 'connected' ou 'error: <detail>' testando a API REST do Qdrant."""
     try:
         with httpx.Client(timeout=3.0) as client:
             r = client.get(f"{Constants.QDRANT_URL}/collections")
             r.raise_for_status()
         return "connected"
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("Qdrant health check falhou: %s", exc)
         return f"error: {exc}"
 
 
 def _run_agent(question: str) -> dict[str, Any]:
-    """Run the LangGraph agent synchronously and return a result dict.
+    """Executa o agente LangGraph de forma síncrona e retorna um dicionário de resultados.
 
-    This function is called inside a ThreadPoolExecutor so it must not
-    await anything.
+    Esta função é chamada dentro de um ThreadPoolExecutor.
     """
     state = initial_state(question)
     result = agent_graph.invoke(state)
@@ -148,9 +139,9 @@ def _run_agent(question: str) -> dict[str, Any]:
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
 
-@app.get("/health", summary="System health check")
+@app.get("/health", summary="Check de saúde do sistema")
 async def health() -> dict:
-    """Return system status.  Always returns 200 — Qdrant status is informative."""
+    """Retorna o status do sistema."""
     qdrant_status = _check_qdrant()
     bm25_loaded = (
         hasattr(app.state, "retrieval_pipeline")
@@ -159,17 +150,16 @@ async def health() -> dict:
     return {
         "status": "ok",
         "qdrant": qdrant_status,
-        "bm25_index": "loaded" if bm25_loaded else "not loaded (dense-only mode)",
+        "bm25_index": "carregado" if bm25_loaded else "não carregado (modo dense-only)",
         "model": Constants.CLAUDE_MODEL,
     }
 
 
-@app.post("/query", response_model=QueryResponse, summary="Run RAG agent")
+@app.post("/query", response_model=QueryResponse, summary="Executar agente RAG")
 async def query(req: QueryRequest) -> QueryResponse:
-    """Execute the full LangGraph agent for the given question.
+    """Executa o agente LangGraph completo para a pergunta fornecida.
 
-    The agent runs in a thread pool to avoid blocking the async event loop.
-    Returns HTTP 500 on agent failure.
+    O agente roda em um pool de threads para evitar o bloqueio do event loop assíncrono.
     """
     logger.info("POST /query: question='%s'", req.question[:80])
     start = time.perf_counter()
@@ -181,7 +171,7 @@ async def query(req: QueryRequest) -> QueryResponse:
             _run_agent,
             req.question,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  
         logger.error("Falha na execução do agente: %s", exc, exc_info=True)
         return JSONResponse(
             status_code=500,
@@ -203,15 +193,4 @@ async def query(req: QueryRequest) -> QueryResponse:
     )
 
 
-@app.get("/metrics", summary="Latest evaluation metrics")
-async def metrics() -> dict:
-    """Return the latest evaluation report from disk if it exists."""
-    report_path = Constants.EVALUATION_REPORT_PATH
-    if report_path.exists():
-        try:
-            with report_path.open("r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Falha ao ler relatório de avaliação: %s", exc)
-            return {"status": "error reading report", "detail": str(exc)}
-    return {"status": "evaluation not run"}
+

@@ -1,8 +1,8 @@
-"""LLM prompt templates for the RAG agent.
+"""Templates de prompt LLM para o agente RAG.
 
-All prompt strings used by agent nodes live here — no prompt text may
-appear in ``nodes.py`` or ``graph.py``.  Templates use ``str.format()``
-placeholders wrapped in curly braces.
+Todas as strings de prompt usadas pelos nós do agente residem aqui — nenhum texto de prompt deve
+aparecer em ``nodes.py`` ou ``graph.py``. Os templates usam marcadores ``str.format()``
+envoltos em chaves.
 """
 
 # ── 1. Query Analyzer ──────────────────────────────────────────────────────

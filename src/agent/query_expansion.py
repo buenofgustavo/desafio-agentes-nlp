@@ -1,7 +1,7 @@
-"""Query expansion module: HyDE + query reformulation.
+"""Módulo de expansão de query: HyDE + reformulação de query.
 
-Extracted into a standalone class so it can be tested independently
-of the LangGraph agent.
+Extraído em uma classe independente para que possa ser testado
+de forma independente do agente LangGraph.
 """
 from __future__ import annotations
 
@@ -17,37 +17,33 @@ logger = LoggingService.setup_logger(__name__)
 
 
 def _parse_json_safely(raw: str) -> object:
-    """Strip markdown fences and parse JSON, returning None on failure."""
+    """Remove blocos de markdown e analisa o JSON, retornando None em caso de falha."""
     cleaned = re.sub(r"```(?:json)?\s*", "", raw).strip().rstrip("`")
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
-        logger.debug("Raw LLM response that failed JSON parse: %s", raw)
+        logger.debug("Resposta bruta do LLM que falhou na análise JSON: %s", raw)
         return None
 
 
 class QueryExpander:
-    """Generates HyDE hypothetical documents and query reformulations.
+    """Gera documentos hipotéticos HyDE e reformulações de query.
 
     Args:
-        llm_client: Any ``BaseLLM`` implementation (e.g. ``AnthropicLLM``).
+        llm_client: Qualquer implementação de ``BaseLLM`` (ex: ``AnthropicLLM``).
     """
 
     def __init__(self, llm_client: BaseLLM) -> None:
         self._llm = llm_client
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def generate_hyde_document(self, query: str) -> str:
-        """Generate a hypothetical document passage for the given query.
+        """Gera um trecho de documento hipotético para a query fornecida.
 
         Args:
-            query: The user's original question.
+            query: A pergunta original do usuário.
 
         Returns:
-            A 2-3 paragraph hypothetical passage, or ``""`` on failure.
+            Um trecho hipotético de 2-3 parágrafos, ou ``""`` em caso de falha.
         """
         prompt = HYDE_PROMPT.format(query=query)
         try:
@@ -57,7 +53,7 @@ class QueryExpander:
                 max_tokens=Constants.LLM_MAX_TOKENS,
             )
             logger.debug(
-                "HyDE document generated (%d chars)", len(hyde_doc)
+                "Documento HyDE gerado (%d caracteres)", len(hyde_doc)
             )
             return hyde_doc.strip()
         except Exception:
@@ -65,15 +61,15 @@ class QueryExpander:
             raise
 
     def generate_reformulations(self, query: str, n: int) -> list[str]:
-        """Generate *n* reformulations of the query.
+        """Gera *n* reformulações da query.
 
         Args:
-            query: The user's original question.
-            n: Number of reformulations to produce.
+            query: A pergunta original do usuário.
+            n: Número de reformulações a serem produzidas.
 
         Returns:
-            A list of reformulated queries. Falls back to ``[query]``
-            if the LLM returns unparseable output.
+            Uma lista de queries reformuladas. Retorna ``[query]``
+            se o LLM retornar uma saída impossível de analisar.
         """
         prompt = QUERY_REFORMULATION_PROMPT.format(query=query, n=n)
         try:
@@ -93,17 +89,17 @@ class QueryExpander:
 
         logger.warning(
             "Resposta de reformulação inválida — usando query original. "
-            "Raw: %s",
+            "Bruto: %s",
             raw[:200],
         )
         return [query]
 
     def expand(self, query: str) -> tuple[str, list[str]]:
-        """Run the full expansion pipeline.
+        """Executa o pipeline completo de expansão.
 
         Returns:
-            A tuple ``(hyde_document, reformulations)``.
-            If ``HYDE_ENABLED`` is ``False``, returns ``("", [query])``.
+            Uma tupla ``(hyde_document, reformulations)``.
+            Se ``HYDE_ENABLED`` for ``False``, retorna ``("", [query])``.
         """
         if not Constants.HYDE_ENABLED:
             logger.info("HyDE desabilitado — retornando query original")

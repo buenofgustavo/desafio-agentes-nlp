@@ -1,4 +1,4 @@
-"""Responsável por orquestrar o processo de ingestão dos documentos, desde a extração do texto até a geração dos chunks e embeddings."""
+"""Responsável por orquestrar o processo de ingestão dos documentos, desde o download dos documentos até o parsing desses documentos."""
 import time
 from typing import List
 from src.indexing.ingestion.json_loader import JsonLoader
@@ -7,6 +7,10 @@ from src.core.config import Constants
 from src.core.models import AneelRecord
 from src.utils.logger import LoggingService
 from src.indexing.processing.document_processor import DocumentProcessor
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 logger = LoggingService.setup_logger(__name__)
 

@@ -1,25 +1,26 @@
-"""BM25 sparse retriever over the Qdrant-indexed chunk corpus.
+"""Recuperador esparso BM25 sobre o corpus de chunks indexados no Qdrant.
 
-The index is built by scrolling ALL points from Qdrant (ensuring BM25 and
-dense retrieval operate over identical data), tokenized with Portuguese-aware
-preprocessing, and persisted to disk as a pickle file for fast reloads.
+O índice é construído fazendo o scroll de TODOS os pontos do Qdrant (garantindo que o BM25
+e a busca densa operem sobre dados idênticos), tokenizado com pré-processamento
+específico para português e persistido no disco para carregamento rápido.
 
-CLI usage::
+Uso via CLI::
 
     python -m src.retrieval.bm25_retriever --rebuild
-    python -m src.retrieval.bm25_retriever --rebuild --index-path /custom/path.pkl
+    python -m src.retrieval.bm25_retriever --rebuild --index-path /caminho/personalizado
 """
 from __future__ import annotations
 
 import argparse
 import pickle
 import re
+import gc
 import string
 from pathlib import Path
 from typing import Optional
 
 import nltk
-from rank_bm25 import BM25Okapi
+import bm25s
 
 from src.core.config import Constants
 from src.core.models import RetrievalResult
@@ -28,15 +29,11 @@ from src.utils.logger import LoggingService
 
 logger = LoggingService.setup_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Portuguese tokenizer
-# ---------------------------------------------------------------------------
-
 _PT_STOPWORDS: Optional[set[str]] = None
 
 
 def _get_stopwords() -> set[str]:
-    """Lazy-load Portuguese NLTK stopwords, downloading them if necessary."""
+    """Carrega as stopwords do NLTK para português de forma preguiçosa, baixando-as se necessário."""
     global _PT_STOPWORDS
     if _PT_STOPWORDS is None:
         try:
@@ -55,56 +52,34 @@ def _get_stopwords() -> set[str]:
 
 _PUNCT_RE = re.compile(r"[" + re.escape(string.punctuation) + r"\d]+")
 
-
-def _tokenize(text: str) -> list[str]:
-    """Tokenize with Portuguese-aware preprocessing.
-
-    Steps:
-        1. Lowercase.
-        2. Remove punctuation and digits.
-        3. Split on whitespace.
-        4. Remove Portuguese stopwords and single-character tokens.
-
-    Args:
-        text: Raw input text.
-
-    Returns:
-        List of cleaned tokens suitable for BM25 indexing.
-    """
-    text = _PUNCT_RE.sub(" ", text.lower())
-    stopwords = _get_stopwords()
-    return [tok for tok in text.split() if tok not in stopwords and len(tok) > 1]
-
-
-# ---------------------------------------------------------------------------
-# BM25Retriever
-# ---------------------------------------------------------------------------
-
-
 class BM25Retriever:
-    """BM25 sparse retriever backed by a persisted index over Qdrant chunks.
+    """Recuperador esparso BM25 baseado em um índice persistido sobre chunks do Qdrant.
 
-    Build workflow:
-        1. Scroll all points from Qdrant to get chunk texts and IDs.
-        2. Tokenize with ``_tokenize()``.
-        3. Fit ``BM25Okapi`` on the tokenized corpus.
-        4. Persist the index and chunk store to ``index_path`` via pickle.
+    Fluxo de construção:
+        1. Scroll de todos os pontos do Qdrant para obter textos e IDs dos chunks.
+        2. Tokenização.
+        3. Ajuste do ``bm25s.BM25`` no corpus tokenizado.
+        4. Persistência do índice no ``index_path`` e do armazenamento de chunks em ``chunks.pkl``.
 
-    On subsequent loads, only step 4 (deserialization) is needed.
+    Em carregamentos subsequentes, apenas o passo 4 (desserialização) é necessário.
     """
 
     def __init__(self, index_path: Optional[str] = None) -> None:
-        """Load the index from disk if it exists; otherwise warn and stay unbuilt.
+        """Carrega o índice do disco se ele existir; caso contrário, avisa e permanece não construído.
 
         Args:
-            index_path: Path to the persisted pickle file. Defaults to
+            index_path: Caminho para o diretório persistido. Padrão:
                 ``Constants.BM25_INDEX_PATH``.
         """
-        self._index_path: Path = (
+        self._index_path = (
             Path(index_path) if index_path else Constants.BM25_INDEX_PATH
         )
-        self._bm25: Optional[BM25Okapi] = None
-        # Each entry: {"chunk_id": str, "text": str, "metadata": dict}
+        
+        if self._index_path.suffix == '.pkl':
+            self._index_path = self._index_path.with_suffix('')
+        
+        self._bm25: Optional[bm25s.BM25] = None
+        # Cada entrada: {"chunk_id": str, "text": str, "metadata": dict}
         self._chunks: list[dict] = []
         self._is_built: bool = False
 
@@ -122,19 +97,15 @@ class BM25Retriever:
                 "Execute 'python -m src.retrieval.bm25_retriever --rebuild'."
             )
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def build(self, chunks: Optional[list[dict]] = None) -> None:
-        """Build the BM25 index and persist it to disk.
+        """Constrói o índice BM25 e o persiste no disco.
 
-        If *chunks* is ``None``, all Qdrant points are scrolled automatically.
+        Se *chunks* for ``None``, todos os pontos do Qdrant são coletados automaticamente via scroll.
 
         Args:
-            chunks: Optional pre-built list of dicts, each with keys
-                ``chunk_id``, ``text``, and ``metadata``. Useful for
-                unit-testing without a live Qdrant instance.
+            chunks: Lista opcional de dicionários pré-construída, cada um com as chaves
+                ``chunk_id``, ``text`` e ``metadata``. Útil para testes unitários.
         """
         if chunks is None:
             chunks = self._scroll_qdrant_chunks()
@@ -145,22 +116,32 @@ class BM25Retriever:
 
         logger.info(f"Construindo índice BM25 com {len(chunks):,} chunks…")
         self._chunks = chunks
+        
+        texts = [c["text"] for c in self._chunks]
+        
+        logger.info("Tokenizando textos com bm25s...")
+        stopwords_pt = _get_stopwords()
+        corpus_tokens = bm25s.tokenize(texts, stopwords=stopwords_pt)
 
-        tokenized = [_tokenize(c["text"]) for c in chunks]
-        self._bm25 = BM25Okapi(tokenized)
+        logger.info("Criando o índice de matrizes esparsas...")
+        self._bm25 = bm25s.BM25()
+        self._bm25.index(corpus_tokens)
         self._is_built = True
 
-        self._index_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._index_path, "wb") as fh:
-            pickle.dump({"bm25": self._bm25, "chunks": self._chunks}, fh)
+        logger.info("Salvando modelo bm25s e metadados no disco...")
+        self._bm25.save(str(self._index_path))
 
-        logger.info(f"Índice BM25 salvo em '{self._index_path}' ({len(chunks):,} chunks)")
+        # Salva nossos chunks brutos lado a lado para podermos mapear índices de volta aos IDs do Qdrant
+        with open(self._index_path / "chunks.pkl", "wb") as fh:
+            pickle.dump(self._chunks, fh, protocol=pickle.HIGHEST_PROTOCOL)
+
+        logger.info(f"Índice BM25 salvo no diretório '{self._index_path}'")
 
     def load(self) -> None:
-        """Load the persisted BM25 index from disk.
+        """Carrega o índice BM25 persistido do disco.
 
         Raises:
-            FileNotFoundError: If ``index_path`` does not exist.
+            FileNotFoundError: Se o ``index_path`` não existir.
         """
         if not self._index_path.exists():
             raise FileNotFoundError(
@@ -168,11 +149,13 @@ class BM25Retriever:
             )
 
         logger.info(f"Carregando índice BM25 de '{self._index_path}'…")
-        with open(self._index_path, "rb") as fh:
-            data = pickle.load(fh)
-
-        self._bm25 = data["bm25"]
-        self._chunks = data["chunks"]
+        
+        self._bm25 = bm25s.BM25.load(str(self._index_path), load_corpus=False)
+        
+        chunks_path = self._index_path / "chunks.pkl"
+        with open(chunks_path, "rb") as fh:
+            self._chunks = pickle.load(fh)
+            
         self._is_built = True
         logger.info(f"Índice BM25 carregado: {len(self._chunks):,} chunks")
 
@@ -181,17 +164,17 @@ class BM25Retriever:
         query: str,
         top_k: Optional[int] = None,
     ) -> list[RetrievalResult]:
-        """Search the BM25 index and return ranked results.
+        """Busca no índice BM25 e retorna os resultados ranqueados.
 
-        Returns an empty list with a WARNING log if the index is not built.
+        Retorna uma lista vazia com log de AVISO se o índice não estiver construído.
 
         Args:
-            query: Plain-text search query.
-            top_k: Number of results. Defaults to ``Constants.BM25_TOP_K``.
+            query: Query de busca em texto simples.
+            top_k: Número de resultados. Padrão: ``Constants.BM25_TOP_K``.
 
         Returns:
-            Ranked list of ``RetrievalResult`` with ``source="bm25"``,
-            sorted by BM25 score descending. Zero-score results are omitted.
+            Lista ranqueada de ``RetrievalResult`` com ``source="bm25"``,
+            ordenada por score BM25 decrescente. Resultados com score zero são omitidos.
         """
         if not self._is_built:
             logger.warning(
@@ -210,7 +193,7 @@ class BM25Retriever:
 
         raw_scores = self._bm25.get_scores(tokens)
 
-        # Rank indices by score descending
+        # Ranqueia os índices por score decrescente
         top_indices = sorted(
             range(len(raw_scores)), key=lambda i: raw_scores[i], reverse=True
         )[:k]
@@ -219,7 +202,7 @@ class BM25Retriever:
         for idx in top_indices:
             score = float(raw_scores[idx])
             if score <= 0.0:
-                break  # BM25Okapi scores are non-negative; 0 means no term overlap
+                break  # Scores BM25Okapi são não-negativos; 0 significa sem sobreposição de termos
             chunk = self._chunks[idx]
             results.append(
                 RetrievalResult(
@@ -238,21 +221,18 @@ class BM25Retriever:
 
     @property
     def is_built(self) -> bool:
-        """``True`` if the index has been successfully built or loaded."""
+        """``True`` se o índice foi construído ou carregado com sucesso."""
         return self._is_built
 
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
 
     def _scroll_qdrant_chunks(self) -> list[dict]:
-        """Scroll all points from Qdrant and return as a list of chunk dicts.
+        """Faz scroll de todos os pontos do Qdrant e retorna como uma lista de dicionários de chunks.
 
         Returns:
-            List of dicts with keys ``chunk_id``, ``text``, and ``metadata``.
-            Points with empty ``text`` payloads are silently skipped.
+            Lista de dicionários com chaves ``chunk_id``, ``text`` e ``metadata``.
+            Pontos com payloads de texto vazios são ignorados silenciosamente.
         """
-        client = get_qdrant_client()
+        client = get_qdrant_client(timeout=600.0)
         collection = Constants.QDRANT_COLLECTION
 
         logger.info(
@@ -261,7 +241,7 @@ class BM25Retriever:
 
         chunks: list[dict] = []
         offset = None
-        batch_size = 256
+        batch_size = 100
 
         while True:
             batch, next_offset = client.scroll(
@@ -295,11 +275,6 @@ class BM25Retriever:
         logger.info(f"Scroll concluído: {len(chunks):,} chunks no total")
         return chunks
 
-
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Gerencia o índice BM25 do pipeline RAG"
@@ -313,7 +288,7 @@ if __name__ == "__main__":
         "--index-path",
         type=str,
         default=None,
-        help="Caminho alternativo para o arquivo de índice (.pkl)",
+        help="Caminho alternativo para o diretório de índice",
     )
     args = parser.parse_args()
 

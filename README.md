@@ -7,7 +7,7 @@ Sistema de **Retrieval-Augmented Generation (RAG)** aplicado a documentos técni
 ## 🏗️ Arquitetura
 
 ```
-Documentos PDF
+Documentos PDF, XLSX, etc.
       │
       ▼
 ┌───────────────────────────────────────────────────────┐
@@ -36,95 +36,79 @@ Documentos PDF
       └─── Streamlit (app/ui.py)  → http://localhost:8501
 ```
 
-Para detalhes de design, consulte a documentação em `docs/`.
+Para detalhes de design, consulte a documentação no código-fonte.
 
 ---
 
-## 📋 Pré-requisitos
-
-| Requisito | Versão mínima |
-|-----------|--------------|
-| Python | 3.11+ |
-| Docker + Docker Compose | qualquer versão recente |
-| Anthropic API Key | — |
-| RAM | ~8 GB |
-| Disco | ~10 GB |
+## ⚙️ Pré-requisitos
+Para executar este projeto, sua máquina precisa ter instalado:
+* **Docker**
+* **Docker Compose**
+* **Google Cloud SDK (gcloud CLI)** (para sincronização de dados/snapshots)
+* Uma chave de API válida da **Anthropic (Claude)**.
 
 ---
 
-## 🚀 Setup
+## 🚀 Guia Rápido de Execução (Passo a Passo)
 
-### 1. Clonar o repositório
-
+### Passo 0: Clonar o Repositório
+Abra o terminal e execute os comandos abaixo para clonar o projeto e entrar na pasta:
 ```bash
-git clone <repo>
+git clone https://github.com/buenofgustavo/desafio-agentes-nlp.git
 cd desafio-agentes-nlp
 ```
 
-### 2. Configurar variáveis de ambiente
-
-```bash
-cp .env.example .env
-# Edite .env e adicione sua ANTHROPIC_API_KEY
+### Passo 1: Configurar a Chave de API
+Na raiz desta pasta, existe um arquivo chamado `.env.example`.
+1. Renomeie este arquivo para `.env`.
+2. Abra o arquivo e insira a sua chave da Anthropic:
+```env
+ANTHROPIC_API_KEY=sk-ant-sua-chave-aqui...
 ```
 
-
-
-### 3. Subir a infraestrutura (Qdrant)
-
+### Passo 2: Baixar o Snapshot do Banco de Dados
+Para evitar o re-processamento de milhares de documentos, baixe o snapshot do Qdrant diretamente do nosso bucket no GCP:
 ```bash
-make infra   # sobe apenas o Qdrant
+mkdir -p qdrant_setup
+
+gcloud storage cp gs://aneel-raw-data/qdrant-snapshot/desafio-agentes-nlp.snapshot qdrant_setup/
 ```
 
-### 4. Baixar o dataset
-
+### Passo 3: Iniciar a Infraestrutura
+Abra o terminal na raiz do projeto e execute o comando abaixo para baixar as imagens otimizadas e iniciar todos os serviços:
 ```bash
-make dataset
+docker-compose up -d
 ```
 
-### 5. Indexar documentos
-
+### Passo 4: Restaurar o Banco de Dados Vetorial (Qdrant)
+Com os containers rodando e o snapshot presente na pasta `qdrant_setup/`, execute o comando abaixo para carregar os dados:
 ```bash
-# Parsing, chunking e indexação vetorial no Qdrant
-python scripts/run_indexing.py --input data/raw/
-
-# Construir índice BM25 (requer Qdrant ativo e indexação concluída)
-python -m src.retrieval.bm25_retriever --rebuild
+curl -X PUT 'http://localhost:6333/collections/setor_eletrico/snapshots/recover' \
+-H 'Content-Type: application/json' \
+-d '{"location": "file:///qdrant/snapshots/desafio-agentes-nlp.snapshot"}'
 ```
+
+### Passo 5 (Opcional): Construir o Índice BM25
+O sistema utiliza busca híbrida. Enquanto os embeddings densos estão no Qdrant, o índice BM25 é local e precisa ser gerado a partir dos dados restaurados:
+```bash
+docker exec -it rag_api_setor_eletrico python -m src.retrieval.bm25_retriever --rebuild
+```
+
+### Passo 6: Acessar a Aplicação
+Com o banco populado, o índice BM25 pronto e a API rodando, acesse a interface do usuário pelo seu navegador:
+👉 **[http://localhost:8501](http://localhost:8501)**
 
 ---
 
-## ▶️ Rodando o Demo
+## 🗄️ Gerenciamento de Dados e Scripts
 
-```bash
-make demo   # inicia Qdrant + FastAPI (docker-compose up -d)
-make ui     # inicia o Streamlit (abre http://localhost:8501)
-```
+Todos os dados processados, documentos brutos e snapshots do Qdrant estão armazenados em nosso bucket no **GCP (Google Cloud Platform)**. Isso garante:
+- **Replicação Rápida:** Sincronização eficiente dos dados para facilitar o setup inicial.
+- **Sempre Atualizado:** A nuvem atua como fonte de verdade dos documentos.
 
-Acesse:
-- **API**: http://localhost:8000/docs
-- **UI**: http://localhost:8501
-- **Qdrant Dashboard**: http://localhost:6333/dashboard
+Para interagir com o GCP e gerenciar os dados, verifique o `Makefile` na raiz do projeto. Ele contém comandos essenciais (como `make sync-data`, `make sync-processed-json` e `make sync-qdrant-snapshot`).
 
-### Verificar saúde da API
-
-```bash
-curl http://localhost:8000/health
-```
-
-### Fazer uma consulta via API
-
-```bash
-curl -X POST http://localhost:8000/query \
-  -H "Content-Type: application/json" \
-  -d '{"question": "Qual é o objetivo do PRODIST?"}'
-```
-
-### Parar os serviços
-
-```bash
-make stop
-```
+Além disso, a pasta `scripts/` contém os arquivos executáveis do pipeline. O usuário pode rodar individualmente qualquer etapa (como ingestão, indexação ou inicialização da coleção) de forma manual, se desejar.
 
 ---
 
@@ -133,39 +117,44 @@ make stop
 ```
 desafio-agentes-nlp/
 ├── app/
-│   ├── api.py              # FastAPI — endpoints /health /query /metrics
-│   └── ui.py               # Streamlit UI
+│   ├── api.py              # FastAPI — endpoints de inferência e healthcheck
+│   └── ui.py               # Interface Streamlit para interação com o usuário
 ├── data/
-│   ├── raw/                # Documentos brutos e markdowns Docling
-│   └── processed/          # Dados processados e relatórios
-├── docs/                   # Documentação técnica adicional
+│   ├── raw/                # Documentos brutos (PDF, XLSX, etc.)
+│   └── processed/          # Dados processados e chunks em formato JSON
+├── qdrant_setup/           # Snapshots e arquivos de configuração do Qdrant
 ├── scripts/
-│   ├── run_indexing.py     # Pipeline de indexação (Fase 1)
-│   ├── run_retrieval_eval.py # Avaliação de recuperação (Fase 2)
-│   └── generate_benchmark.py # Anotação do benchmark
+│   ├── download_dataset.py # Download do dataset (JSONs)
+│   ├── run_indexing.py     # Pipeline de indexação e criação de embeddings
+│   ├── run_ingestion.py    # Processamento e ingestão de documentos
+│   ├── run_agent.py        # Execução do agente via linha de comando
+│   └── setup_collection.py # Script de inicialização da coleção no Qdrant
 ├── src/
-│   ├── agent/              # Agente LangGraph (Fase 4)
-│   │   ├── graph.py        # Grafo compilado + singleton agent_graph
-│   │   ├── nodes.py        # 7 nós do agente
-│   │   ├── state.py        # AgentState TypedDict
-│   │   ├── prompts.py      # Templates de prompts
-│   │   └── query_expansion.py # HyDE + reformulações
+│   ├── agent/              # Lógica do agente LangGraph
+│   │   ├── graph.py        # Definição e compilação do grafo de estados
+│   │   ├── nodes.py        # Implementação das funções de cada nó
+│   │   ├── state.py        # Definição do esquema de estado do agente
+│   │   └── query_expansion.py # Técnicas de expansão de consulta (HyDE)
 │   ├── ai/
-│   │   ├── embeddings/     # Embedder (multilingual-e5-large)
-│   │   └── llm/            # Anthropic / OpenAI / Ollama wrappers
+│   │   ├── embeddings/     # Geração de vetores (all-MiniLM-L6-v2)
+│   │   └── llm/            # Clientes para Anthropic, OpenAI e Ollama
 │   ├── core/
-│   │   ├── config.py       # Constantes e variáveis de ambiente
-│   │   └── models.py       # Modelos Pydantic/dataclass
-│   ├── indexing/           # Parsers, chunkers, vector store
-│   ├── retrieval/          # BM25, dense, hybrid, reranker, pipeline
+│   │   ├── config.py       # Gerenciamento de variáveis de ambiente
+│   │   └── models.py       # Modelos Pydantic para validação de dados
+│   ├── indexing/           # Módulos de ingestão, processamento e storage
+│   │   ├── ingestion/      # Download e carregamento de documentos
+│   │   ├── processing/     # Extração de texto e chunking
+│   │   └── storage/        # Interface com o banco vetorial Qdrant
+│   ├── retrieval/          # Estratégias de busca (BM25, Semântica, Híbrida)
 │   └── utils/
-│       ├── logger.py       # LoggingService (usar exclusivamente)
-│       └── file_utils.py
-├── Dockerfile
-├── docker-compose.yml
-├── Makefile
-├── requirements.txt
-└── .env.example
+│       ├── logger.py       # Serviço centralizado de logs
+│       └── file_utils.py   # Manipulação de arquivos e diretórios
+├── Dockerfile.api          # Definição do container para a API
+├── Dockerfile.ui           # Definição do container para a UI
+├── docker-compose.yml      # Orquestração de containers e rede
+├── Makefile                # Atalhos para comandos comuns (build, run)
+├── requirements.txt        # Dependências Python do projeto
+└── .env.example            # Exemplo de configuração de ambiente
 ```
 
 ---
@@ -179,6 +168,15 @@ desafio-agentes-nlp/
 | **LangGraph como orquestrador do agente** | Estado imutável auditável, roteamento condicional limpo, suporte nativo a multi-hop e retry loops |
 | **HyDE + reformulações de query** | Melhora recall para queries ambíguas; HyDE contorna o vocabulary mismatch em busca densa |
 | **FastAPI + Streamlit desacoplados** | UI stateless e substituível; API testável independentemente via `curl`/`httpx` |
+
+---
+
+## 🕵️‍♂️ Extração de Dados
+
+Durante o download dos documentos da ANEEL, a biblioteca padrão `requests` era frequentemente bloqueada. A solução para realizar o bypass no Cloudflare foi utilizar a biblioteca `curl_cffi` com *sessions*:
+
+- **Impersonação de Navegador:** O `curl_cffi` usa a tecnologia `curl-impersonate` para imitar perfeitamente o comportamento de rede de navegadores reais. Ele copia exatamente as extensões TLS, a ordem de cifras e pacotes HTTP/2 do Chrome/Edge/Safari, passando despercebido pelo WAF (Web Application Firewall).
+- **O Poder das Sessions:** Utilizar uma sessão (em vez de requisições isoladas) foi crucial. A sessão gerencia os cookies automaticamente (como o desafio invisível `__cf_clearance` do Cloudflare) para as requisições subsequentes e faz reaproveitamento de conexão (*Connection Pooling* via *Keep-Alive*). Isso não apenas acelera drasticamente a extração, mas também torna o padrão de tráfego muito mais orgânico e confiável para o servidor.
 
 ---
 

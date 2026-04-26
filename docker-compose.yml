@@ -7,12 +7,13 @@ services:
       - "6334:6334" # Porta para gRPC
     volumes:
       - qdrant_data:/qdrant/storage
+      - ./qdrant_setup:/qdrant/snapshots
     restart: unless-stopped
     environment:
       - QDRANT__SERVICE__HTTP_PORT=6333
 
   api:
-    build: .
+    image: braziel2004/aneel-api:latest
     container_name: rag_api_setor_eletrico
     ports:
       - "8000:8000"
@@ -29,7 +30,7 @@ services:
     restart: unless-stopped
 
   ui:
-    build: .
+    image: braziel2004/aneel-ui:latest
     container_name: rag_ui_setor_eletrico
     ports:
       - "8501:8501"

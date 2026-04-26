@@ -1,4 +1,4 @@
-"""Responsável pela geração de chunks a partir dos documentos extraídos"""
+"""Responsável pela geração de chunks a partir dos documentos extraídos."""
 import os
 from typing import List, Optional, Dict
 import anthropic
@@ -14,7 +14,7 @@ logger = LoggingService.setup_logger(__name__)
 
 
 class DocumentChunker:
-    """Handles document chunking with parent-child hierarchy and context generation."""
+    """Gerencia a fragmentação de documentos com hierarquia pai-filho e geração de contexto."""
     
     PARENT_CHUNK_SIZE = 3000
     PARENT_CHUNK_OVERLAP = 300
@@ -50,18 +50,18 @@ class DocumentChunker:
         )
     
     def chunk_document(self, doc: Dict, meta: Dict, use_context: bool = False) -> List[ChildChunk]:
-        """Main chunking pipeline with optional context generation."""
-        # Phase 1: Build all chunks without context
+        """Pipeline principal de fragmentação com geração opcional de contexto."""
+        # Fase 1: Construir todos os chunks sem contexto
         raw_chunks = self._build_raw_chunks(doc)
         
-        # Phase 2: Generate contexts if enabled
+        # Fase 2: Gerar contextos se habilitado
         contexts = self._generate_contexts(raw_chunks) if use_context else [""] * len(raw_chunks)
         
-        # Phase 3: Assemble final ChildChunk objects
+        # Fase 3: Montar objetos ChildChunk finais
         return self._assemble_chunks(raw_chunks, contexts, meta)
     
     def _build_raw_chunks(self, doc: Dict) -> List[Dict]:
-        """Create raw chunks from document pages."""
+        """Cria chunks brutos a partir das páginas do documento."""
         raw_chunks = []
         for page in doc.get("pages", []):
             text = page.get("text")
@@ -82,7 +82,7 @@ class DocumentChunker:
         return raw_chunks
         
     def _safely_merge_strings(self, s1: str, s2: str) -> str:
-        """Merges s2 into s1, avoiding overlapping duplications."""
+        """Mescla s2 em s1, evitando duplicações por sobreposição."""
         max_overlap = min(len(s1), len(s2))
         for i in range(max_overlap, 0, -1):
             if s1.endswith(s2[:i]):
@@ -90,6 +90,7 @@ class DocumentChunker:
         return s1 + " " + s2
 
     def _merge_small_chunks(self, child_texts: List[str]) -> List[str]:
+        """Mescla chunks pequenos para garantir um tamanho mínimo."""
         if not child_texts:
             return []
             
@@ -108,7 +109,7 @@ class DocumentChunker:
         return merged
     
     def _generate_contexts(self, raw_chunks: List[Dict]) -> List[str]:
-        """Generate contexts for all chunks in batch."""
+        """Gera contextos para todos os chunks em lote."""
         requests = [
             ContextRequest(
                 parent_text=c["parent_text"],
@@ -122,7 +123,7 @@ class DocumentChunker:
     def _assemble_chunks(
         self, raw_chunks: List[Dict], contexts: List[str], meta: Dict
     ) -> List[ChildChunk]:
-        """Assemble final ChildChunk objects."""
+        """Monta os objetos ChildChunk finais."""
         all_chunks = []
         for i, raw in enumerate(raw_chunks):
             context_prefix = contexts[i]
@@ -144,3 +145,4 @@ class DocumentChunker:
             ))
         
         return all_chunks
+unks

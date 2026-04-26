@@ -11,11 +11,11 @@ logger = LoggingService.setup_logger(__name__)
 
 load_dotenv()
 
-def get_qdrant_client() -> QdrantClient:
+def get_qdrant_client(timeout: float = 60.0) -> QdrantClient:
     logger.info('Carregando QdrantClient')
-    return QdrantClient(url=os.getenv('QDRANT_URL', 'http://localhost:6333'))
+    return QdrantClient(url=os.getenv('QDRANT_URL', 'http://localhost:6333'), timeout=timeout)
 
-def create_collection(name: str, vector_size: int = 1024) -> None:
+def create_collection(name: str, vector_size: int = 384) -> None:
     client = get_qdrant_client()
     existing = [c.name for c in client.get_collections().collections]
     

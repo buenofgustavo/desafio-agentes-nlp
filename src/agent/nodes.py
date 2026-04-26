@@ -1,10 +1,10 @@
-"""LangGraph node functions for the RAG agent.
+"""Funções de nó do LangGraph para o agente RAG.
 
-Each node is a standalone function with signature ``(state: AgentState) -> dict``.
-Nodes return only the state fields they update — LangGraph merges them.
+Cada nó é uma função independente com a assinatura ``(state: AgentState) -> dict``.
+Os nós retornam apenas os campos de estado que atualizam — o LangGraph os mescla.
 
-All LLM calls go through ``get_llm()`` from the existing factory.
-All prompt strings are imported from ``prompts.py``.
+Todas as chamadas de LLM passam por ``get_llm()`` da fábrica existente.
+Todas as strings de prompt são importadas de ``prompts.py``.
 """
 from __future__ import annotations
 
@@ -37,13 +37,11 @@ from src.utils.logger import LoggingService
 
 logger = LoggingService.setup_logger(__name__)
 
-# ── Shared helpers ─────────────────────────────────────────────────────────
-
 _tokenizer: tiktoken.Encoding | None = None
 
 
 def _get_tokenizer() -> tiktoken.Encoding:
-    """Lazy-load the tiktoken encoder (singleton)."""
+    """Carrega o encoder tiktoken de forma preguiçosa (singleton)."""
     global _tokenizer  # noqa: PLW0603
     if _tokenizer is None:
         _tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -51,12 +49,12 @@ def _get_tokenizer() -> tiktoken.Encoding:
 
 
 def _count_tokens(text: str) -> int:
-    """Count tokens using tiktoken cl100k_base encoding."""
+    """Conta tokens usando o encoding tiktoken cl100k_base."""
     return len(_get_tokenizer().encode(text))
 
 
 def _get_llm():
-    """Return the configured Anthropic LLM instance."""
+    """Retorna a instância do LLM Anthropic configurada."""
     return get_llm("anthropic", Constants.CLAUDE_MODEL)
 
 
@@ -64,16 +62,16 @@ _M = TypeVar("_M", bound=BaseModel)
 
 
 def _parse_model(raw: str, model: type[_M], fallback: _M | None = None) -> _M | None:
-    """Strip markdown fences, parse JSON, and validate against a Pydantic model.
+    """Remove blocos de markdown, analisa o JSON e valida contra um modelo Pydantic.
 
     Args:
-        raw:      Raw LLM response string (may contain markdown code fences).
-        model:    Pydantic model class to validate against.
-        fallback: Value to return on parse/validation failure.
-                  If ``None``, returns ``None`` on failure.
+        raw:      String de resposta bruta do LLM (pode conter blocos de código markdown).
+        model:    Classe de modelo Pydantic para validação.
+        fallback: Valor a retornar em caso de falha de análise/validação.
+                  Se ``None``, retorna ``None`` em caso de falha.
 
     Returns:
-        A validated model instance, or ``fallback`` / ``None`` on failure.
+        Uma instância de modelo validada, ou ``fallback`` / ``None`` em caso de falha.
     """
     cleaned = re.sub(r"```(?:json)?\s*", "", raw).strip().rstrip("`")
     try:
@@ -87,12 +85,12 @@ def _parse_model(raw: str, model: type[_M], fallback: _M | None = None) -> _M | 
 
 
 def query_analyzer(state: AgentState) -> dict:
-    """Classify the query as simple, comparative, or multi_hop.
+    """Classifica a query como simples, comparativa ou multi-hop.
 
-    Calls Claude with ``QUERY_ANALYZER_PROMPT`` and parses the response
-    into a ``QueryAnalysis`` Pydantic model.
+    Chama o Claude com ``QUERY_ANALYZER_PROMPT`` e analisa a resposta
+    em um modelo Pydantic ``QueryAnalysis``.
 
-    Updates:
+    Atualiza:
         query_type
     """
     query = state["original_query"]
@@ -128,21 +126,21 @@ def query_analyzer(state: AgentState) -> dict:
 
 
 def query_expander(state: AgentState) -> dict:
-    """Generate HyDE document and query reformulations.
+    """Gera documento HyDE e reformulações de query.
 
-    Skipped (returns original query only) if ``HYDE_ENABLED=false``.
+    Ignorado (retorna apenas a query original) se ``HYDE_ENABLED=false``.
 
-    Updates:
+    Atualiza:
         expanded_queries, hyde_document
     """
     query = state["original_query"]
     logger.info("query_expander: expandindo query")
 
-    # For multi-hop rounds > 1, generate a sub-query instead
+    # Para rodadas multi-hop > 1, gera uma sub-query em vez de expansão completa
     retrieval_round = state.get("retrieval_round", 0)
     if retrieval_round >= 1 and state.get("query_type") == "multi_hop":
         logger.info(
-            "query_expander: multi-hop round %d — gerando sub-query",
+            "query_expander: rodada multi-hop %d — gerando sub-query",
             retrieval_round + 1,
         )
         sub_query = _generate_multihop_subquery(state)
@@ -156,7 +154,7 @@ def query_expander(state: AgentState) -> dict:
     expander = QueryExpander(llm)
     hyde_doc, reformulations = expander.expand(query)
 
-    # Build the full list: HyDE doc + reformulations + original query
+    # Monta a lista completa: documento HyDE + reformulações + query original
     expanded: list[str] = []
     if hyde_doc:
         expanded.append(hyde_doc)
@@ -178,7 +176,7 @@ def query_expander(state: AgentState) -> dict:
 
 
 def _generate_multihop_subquery(state: AgentState) -> str:
-    """Generate the next sub-query for multi-hop retrieval."""
+    """Gera a próxima sub-query para recuperação multi-hop."""
     llm = _get_llm()
 
     chunks = state.get("retrieved_chunks", [])
@@ -215,12 +213,12 @@ def _generate_multihop_subquery(state: AgentState) -> str:
 
 
 def retriever(state: AgentState) -> dict:
-    """Run RetrievalPipeline for each expanded query and aggregate results.
+    """Executa o RetrievalPipeline para cada query expandida e agrega os resultados.
 
-    For multi-hop rounds > 1: appends new chunks to existing ones and
-    de-duplicates globally.
+    Para rodadas multi-hop > 1: anexa novos chunks aos existentes e
+    remove duplicatas globalmente.
 
-    Updates:
+    Atualiza:
         retrieved_chunks, retrieval_round
     """
 
@@ -236,7 +234,7 @@ def retriever(state: AgentState) -> dict:
 
     pipeline = RetrievalPipeline()
 
-    # Collect results from all expanded queries concurrently
+    # Coleta resultados de todas as queries expandidas simultaneamente
     all_results: list[RetrievalResult] = []
 
     def _fetch(idx: int, q: str) -> list[RetrievalResult]:
@@ -257,7 +255,7 @@ def retriever(state: AgentState) -> dict:
         for future in concurrent.futures.as_completed(futures):
             all_results.extend(future.result())
 
-    # De-duplicate: keep highest rerank_score per chunk_id
+    # Desduplicação: mantém o maior rerank_score por chunk_id
     best_by_id: dict[str, RetrievalResult] = {}
     for chunk in existing_chunks + all_results:
         cid = chunk.chunk_id
@@ -289,13 +287,13 @@ def retriever(state: AgentState) -> dict:
 
 
 def reranker(state: AgentState) -> dict:
-    """Re-score all retrieved chunks against the original query.
+    """Reavalia a pontuação de todos os chunks recuperados contra a query original.
 
-    Uses ``CrossEncoderReranker`` to ensure the final ranking is relative
-    to the user's actual intent (not expanded queries).
+    Usa o ``CrossEncoderReranker`` para garantir que o ranking final seja relativo
+    à intenção real do usuário (não às queries expandidas).
 
-    Updates:
-        retrieved_chunks (reordered and trimmed)
+    Atualiza:
+        retrieved_chunks (reordenados e limitados)
     """
     from src.retrieval.reranker import CrossEncoderReranker
 
@@ -330,12 +328,12 @@ def reranker(state: AgentState) -> dict:
 
 
 def context_assembler(state: AgentState) -> dict:
-    """Assemble the final context string from reranked chunks.
+    """Monta a string final de contexto a partir dos chunks reranqueados.
 
-    Formats each chunk with metadata headers, enforces the token budget
-    using tiktoken, and builds the sources list.
+    Formata cada chunk com cabeçalhos de metadados, respeita o limite de tokens
+    usando tiktoken e constrói a lista de fontes.
 
-    Updates:
+    Atualiza:
         assembled_context, context_token_count, sources
     """
     chunks = state.get("retrieved_chunks", [])
@@ -349,19 +347,19 @@ def context_assembler(state: AgentState) -> dict:
     seen_texts: set[str] = set()
 
     for chunk in chunks:
-        # Skip exact duplicates
+        # Pula duplicatas exatas
         text_hash = chunk.text.strip()
         if text_hash in seen_texts:
             continue
         seen_texts.add(text_hash)
 
-        # Extract metadata
+        # Extração de metadados
         meta = chunk.metadata or {}
         doc_name = meta.get("titulo") or meta.get("source_file", "Documento")
         section = meta.get("material", "")
         page = meta.get("page", "?")
 
-        # Format chunk
+        # Formatação do chunk
         formatted = (
             f"[Documento: {doc_name} | Seção: {section} | Página: {page}]\n"
             f"{chunk.text}\n"
@@ -408,9 +406,9 @@ def context_assembler(state: AgentState) -> dict:
 
 
 def generator(state: AgentState) -> dict:
-    """Call Claude to generate a grounded answer with inline citations.
+    """Chama o Claude para gerar uma resposta fundamentada com citações inline.
 
-    Updates:
+    Atualiza:
         answer
     """
     context = state.get("assembled_context", "")
@@ -439,14 +437,14 @@ def generator(state: AgentState) -> dict:
 
 
 def faithfulness_check(state: AgentState) -> dict:
-    """Evaluate whether the answer is grounded in the context.
+    """Avalia se a resposta está fundamentada no contexto.
 
-    If not grounded and retries remain, rewrites the answer using
+    Se não estiver fundamentada e restarem tentativas, reescreve a resposta usando
     ``FAITHFULNESS_CORRECTION_PROMPT``.
 
-    Updates:
+    Atualiza:
         faithfulness_score, faithfulness_reasoning, is_grounded,
-        final_answer, faithfulness_retries, answer (if corrected)
+        final_answer, faithfulness_retries, answer (se corrigida)
     """
     answer = state.get("answer", "")
     context = state.get("assembled_context", "")
@@ -461,7 +459,7 @@ def faithfulness_check(state: AgentState) -> dict:
 
     llm = _get_llm()
 
-    # ── Evaluate faithfulness ──────────────────────────────────────
+    # ── Avaliar fidelidade ─────────────────────────────────────────
     eval_prompt = FAITHFULNESS_CHECK_PROMPT.format(
         query=query, context=context, answer=answer
     )
@@ -472,7 +470,7 @@ def faithfulness_check(state: AgentState) -> dict:
         max_tokens=1024,
     )
 
-    # Fallback: assume grounded so the graph doesn't stall on bad LLM output
+    # Fallback: assume como fundamentada para que o grafo não trave em saídas ruins do LLM
     fallback = FaithfulnessResult(is_grounded=True, reasoning="Falha ao parsear avaliação")
     eval_result = _parse_model(raw, FaithfulnessResult, fallback=fallback)
 
@@ -488,7 +486,7 @@ def faithfulness_check(state: AgentState) -> dict:
         eval_result.score,
     )
 
-    # ── If grounded or out of retries → finalize ───────────────────
+    # ── Se fundamentada ou sem tentativas restantes → finalizar ────
     if eval_result.is_grounded or retries >= Constants.MAX_FAITHFULNESS_RETRIES:
         if not eval_result.is_grounded:
             logger.warning(
@@ -504,7 +502,7 @@ def faithfulness_check(state: AgentState) -> dict:
             "faithfulness_retries": retries,
         }
 
-    # ── Not grounded + retries remaining → correct ─────────────────
+    # ── Não fundamentada + tentativas restantes → corrigir ─────────
     logger.warning(
         "faithfulness_check: %d afirmações não suportadas — corrigindo",
         len(eval_result.unsupported_claims),
