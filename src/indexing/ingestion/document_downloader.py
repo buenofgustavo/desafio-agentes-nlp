@@ -37,7 +37,7 @@ class DocumentDownloader:
         self._global_lock = threading.Lock()
         self._all_sessions: List[cf_requests.Session] = []
 
-        # Statistics (thread-safe)
+        # Estatísticas (thread-safe)
         self._stats_lock = threading.Lock()
         self._stats = {
             "success": 0,
@@ -55,7 +55,7 @@ class DocumentDownloader:
     def __exit__(self, *_) -> None:
         self._cleanup_sessions()
 
-    # ── Session Management (thread-local) ──────────────────────────
+    # ── Gerenciamento de Sessão (thread-local) ──────────────────────
 
     def _get_session(self) -> cf_requests.Session:
         """Retorna a sessão thread-local, criando-a se necessário.
@@ -81,7 +81,7 @@ class DocumentDownloader:
                 pass
         self._all_sessions.clear()
 
-    # ── URL Helpers ────────────────────────────────────────────────
+    # ── Auxiliares de URL ──────────────────────────────────────────
 
     @staticmethod
     def _sanitize_url(url: str) -> str:
@@ -122,7 +122,7 @@ class DocumentDownloader:
         dir_path = path.rsplit("/", 1)[0] + "/" if "/" in path else "/"
         return f"{parsed.scheme}://{parsed.netloc}{dir_path}"
 
-    # ── Rate Limiting ──────────────────────────────────────────────
+    # ── Controle de Fluxo (Rate Limiting) ──────────────────────────
 
     def _get_domain_lock(self, domain: str) -> threading.Lock:
         """Retorna o lock de rate limiting para um domínio (thread-safe)."""
@@ -144,7 +144,7 @@ class DocumentDownloader:
                 time.sleep(delay - elapsed)
             self._domain_last_request[domain] = time.monotonic()
 
-    # ── Warm-up ────────────────────────────────────────────────────
+    # ── Pré-aquecimento (Warm-up) ──────────────────────────────────
 
     def _ensure_warmed_up(self, url: str) -> None:
         """Faz warm-up do domínio para obter cookies Cloudflare (thread-local).
@@ -179,14 +179,14 @@ class DocumentDownloader:
         warmed.add(host)
         self._thread_local.warmed_up_hosts = warmed
 
-    # ── Statistics ─────────────────────────────────────────────────
+    # ── Estatísticas ───────────────────────────────────────────────
 
     def _increment_stat(self, key: str) -> None:
         """Incrementa um contador de estatística (thread-safe)."""
         with self._stats_lock:
             self._stats[key] += 1
 
-    # ── Download Logic ─────────────────────────────────────────────
+    # ── Lógica de Download ─────────────────────────────────────────
 
     def _fetch_bytes(self, url: str) -> bytes | None:
         """Baixa o conteúdo de uma URL com retry e exponential backoff.
@@ -289,7 +289,7 @@ class DocumentDownloader:
 
         return False
 
-    # ── Public API ─────────────────────────────────────────────────
+    # ── API Pública ────────────────────────────────────────────────
 
     def download_documents(
         self,
