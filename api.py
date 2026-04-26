@@ -36,6 +36,7 @@ def health() -> dict:
 @app.post("/chat")
 def chat(req: ChatRequest) -> dict:
     try:
+        print(f"Pergunta recebida: {req.pergunta} | top_k={req.top_k}")
         resposta, contextos = app.state.rag.answer(question=req.pergunta, top_k=req.top_k)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

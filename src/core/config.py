@@ -22,3 +22,5 @@ class Constants:
 	OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4.1-mini")
 	OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 	ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+	QDRANT_COLLECTION = 'desafio-agentes-nlp'

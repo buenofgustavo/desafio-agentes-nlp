@@ -39,7 +39,7 @@ class RAGService:
         
     def retrieve(self, query: str, top_k: int = 5, score_threshold: float = 0.5, apenas_vigentes: bool = False) -> List[SearchResult]:
 
-        collection = os.getenv('QDRANT_COLLECTION', 'setor_eletrico')
+        collection = Constants.QDRANT_COLLECTION
         
         vector = embed_query(query)
         
@@ -50,32 +50,35 @@ class RAGService:
                 match=MatchValue(value='NÃO CONSTA REVOGAÇÃO EXPRESSA'),
             )])
             
-        hits = self.qdrant_client.search(
+        hits = self.qdrant_client.query_points(
             collection_name=collection,
-            query_vector=vector,
+            query=vector,
             limit=top_k,
             score_threshold=score_threshold,
             query_filter=query_filter,
             with_payload=True,
         )
         
-        return [SearchResult(
-            text=h.payload.get('text', ''),
-            score=h.score,
-            source_file=h.payload.get('source_file', ''),
-            page=h.payload.get('page', 0),
-            titulo=h.payload.get('titulo', ''),
-            assunto=h.payload.get('assunto', ''),
-            situacao=h.payload.get('situacao', ''),
-            data_publicacao=h.payload.get('data_publicacao', ''),
-        ) for h in hits]
+        return [
+            SearchResult(
+                text=h.payload.get('parent_text', ''),
+                score=h.score,
+                source_file=h.payload.get('source_file', ''),
+                page=h.payload.get('page', 0),
+                titulo=h.payload.get('titulo', ''),
+                assunto=h.payload.get('assunto', ''),
+                situacao=h.payload.get('situacao', ''),
+                data_publicacao=h.payload.get('publicacao', ''),
+            )
+            for h in hits.points
+        ]
     
 
     def answer(self, question: str, top_k: int = 3) -> Tuple[str, List[Dict]]:
         if self.llm is None:
             raise RuntimeError("LLM não configurada. Crie um arquivo .env.")
 
-        contexts = self.retrieve(question=question, top_k=top_k)
+        contexts = self.retrieve(query=question, top_k=top_k)
         context_text = "\n\n".join(
             [f"[Fonte {i + 1}] {ctx.text}" for i, ctx in enumerate(contexts)]
         )
@@ -85,7 +88,7 @@ class RAGService:
             "Se a resposta não estiver no contexto, diga explicitamente que não encontrou.\n\n"
             f"Contexto:\n{context_text}\n\nPergunta: {question}"
         )
-
+        print(f"Prompt gerado para LLM:\n{prompt}\n{'-'*50}")
         response = self.llm.generate(
             prompt=prompt,
             system_prompt="Você é um assistente objetivo e fiel ao contexto fornecido.",
