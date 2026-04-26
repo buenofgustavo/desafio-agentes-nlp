@@ -1,0 +1,26 @@
+# UI stage: lightweight Streamlit container
+FROM python:3.11-slim AS base
+
+WORKDIR /app
+
+# Install common system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+# Upgrade pip first
+RUN pip install --upgrade pip
+# Add a massive timeout (1000 seconds per file)
+RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
+
+# UI stage: minimal setup for Streamlit
+FROM base AS ui
+
+COPY . .
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "app/ui.py", "--server.address", "0.0.0.0"]

@@ -1,0 +1,31 @@
+# Base stage: install Python dependencies
+FROM python:3.11-slim AS base
+
+WORKDIR /app
+
+# Install common system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+# Upgrade pip first
+RUN pip install --upgrade pip
+# Add a massive timeout (1000 seconds per file)
+RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
+
+# API stage: add NLP models and API-specific setup
+FROM base AS api
+
+# Download NLP model data FIRST (so Docker caches this heavy step)
+RUN python -m nltk.downloader stopwords punkt
+RUN python -m spacy download pt_core_news_sm
+
+# THEN copy your code
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]
