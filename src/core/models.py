@@ -122,15 +122,15 @@ class ProcessedDocument:
     
 @dataclass
 class ChildChunk:
-    # text that gets embedded = context_prefix + text
-    text:             str         # raw child text
-    context_prefix:   str         # LLM-generated contextual description
-    text_to_embed:    str         # context_prefix + text (what we actually embed)
+    # O texto que será indexado = context_prefix + text
+    text:             str         # texto bruto do chunk filho
+    context_prefix:   str         # descrição contextual gerada por LLM
+    text_to_embed:    str         # context_prefix + text (o que realmente indexamos)
 
-    # parent reference — returned to the LLM at query time
+    # referência ao pai — retornado para o LLM no momento da query
     parent_text:      str
 
-    # position
+    # posicionamento
     source_file:      str
     page:             int
     parent_index:     int
@@ -148,18 +148,18 @@ class ChildChunk:
     ementa: Optional[str]
 
 
-# ── Retrieval result model ─────────────────────────────────────────
-from typing import Literal  # noqa: E402  (already imported above, Literal added here)
+# ── Modelo de resultado de recuperação ─────────────────────────────
+from typing import Literal  # noqa: E402
 from pydantic import BaseModel
 
 
 class RetrievalResult(BaseModel):
-    """Result returned by all retrieval components.
+    """Resultado retornado por todos os componentes de recuperação.
 
-    Score fields are progressively populated through the pipeline:
-      - score:        raw retriever score (BM25 or cosine similarity)
-      - rrf_score:    fused RRF score (set by HybridRetriever)
-      - rerank_score: cross-encoder score (set by CrossEncoderReranker)
+    Os campos de score são preenchidos progressivamente pelo pipeline:
+      - score:        score bruto do recuperador (BM25 ou similaridade de cosseno)
+      - rrf_score:    score RRF fundido (definido pelo HybridRetriever)
+      - rerank_score: score do cross-encoder (definido pelo CrossEncoderReranker)
     """
 
     chunk_id: str
@@ -171,15 +171,15 @@ class RetrievalResult(BaseModel):
     rerank_score: float | None = None
 
 
-# ── Agent LLM response models ───────────────────────────────────────────────
+# ── Modelos de resposta do Agente (LLM) ──────────────────────────────────
 
 
 class QueryAnalysis(BaseModel):
-    """Structured response from the query_analyzer node.
+    """Resposta estruturada do nó query_analyzer.
 
-    The LLM returns JSON with this shape; Pydantic validates and
-    coerces it — unknown fields are ignored, missing optional fields
-    get sensible defaults.
+    O LLM retorna JSON com este formato; o Pydantic valida e
+    converte os dados — campos desconhecidos são ignorados, campos
+    opcionais ausentes recebem padrões sensatos.
     """
 
     query_type: Literal["simple", "comparative", "multi_hop"] = "simple"
@@ -187,7 +187,7 @@ class QueryAnalysis(BaseModel):
 
 
 class FaithfulnessResult(BaseModel):
-    """Structured response from the faithfulness_check node."""
+    """Resposta estruturada do nó faithfulness_check."""
 
     is_grounded: bool = True
     score: float = 0.0
@@ -196,7 +196,7 @@ class FaithfulnessResult(BaseModel):
 
 
 class MultiHopSubQuery(BaseModel):
-    """Structured response from the multi-hop sub-query generator."""
+    """Resposta estruturada do gerador de sub-queries para multi-hop."""
 
     sub_query: str
     reasoning: str = ""
