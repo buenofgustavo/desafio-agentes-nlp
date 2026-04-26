@@ -1,7 +1,7 @@
-"""LangGraph AgentState definition.
+"""Definição do AgentState para o LangGraph.
 
-Defines the shared state TypedDict that flows through all graph nodes,
-plus a factory function to create an initial state from a user query.
+Define o TypedDict de estado compartilhado que flui através de todos os nós do grafo,
+além de uma função fábrica para criar o estado inicial a partir de uma query do usuário.
 """
 from __future__ import annotations
 
@@ -11,56 +11,52 @@ from src.core.models import RetrievalResult
 
 
 class AgentState(TypedDict, total=False):
-    """Shared state for the RAG agent graph.
+    """Estado compartilhado para o grafo do agente RAG.
 
-    All fields are optional (``total=False``) so that nodes only need to
-    return the fields they update — LangGraph merges them automatically.
-
-    The state must remain JSON-serializable for LangSmith tracing.
-    ``RetrievalResult`` objects are Pydantic models and serialize via
-    ``.model_dump()``.
+    Todos os campos são opcionais (``total=False``) para que os nós precisem apenas
+    retornar os campos que atualizam — o LangGraph os mescla automaticamente.
     """
 
-    # ── Input ──────────────────────────────────────────────────────
+    # ── Entrada ────────────────────────────────────────────────────
     original_query: str
 
-    # ── Query analysis ─────────────────────────────────────────────
+    # ── Análise de Query ───────────────────────────────────────────
     query_type: Literal["simple", "comparative", "multi_hop"]
 
-    # ── Query expansion ────────────────────────────────────────────
+    # ── Expansão de Query ──────────────────────────────────────────
     expanded_queries: list[str]
     hyde_document: str | None
 
-    # ── Retrieval ──────────────────────────────────────────────────
+    # ── Recuperação (Retrieval) ────────────────────────────────────
     retrieved_chunks: list[RetrievalResult]
     retrieval_round: int
 
-    # ── Context ────────────────────────────────────────────────────
+    # ── Contexto ───────────────────────────────────────────────────
     assembled_context: str
     context_token_count: int
 
-    # ── Generation ─────────────────────────────────────────────────
+    # ── Geração ────────────────────────────────────────────────────
     answer: str
     sources: list[dict]
 
-    # ── Faithfulness ───────────────────────────────────────────────
+    # ── Fidelidade (Faithfulness) ──────────────────────────────────
     faithfulness_score: float | None
     faithfulness_reasoning: str | None
     faithfulness_retries: int
 
-    # ── Output ─────────────────────────────────────────────────────
+    # ── Saída ──────────────────────────────────────────────────────
     final_answer: str
     is_grounded: bool
 
 
 def initial_state(query: str) -> AgentState:
-    """Create an initial AgentState with sensible defaults.
+    """Cria um AgentState inicial com padrões sensatos.
 
     Args:
-        query: The user's original question.
+        query: A pergunta original do usuário.
 
     Returns:
-        A fully initialized ``AgentState`` ready for graph invocation.
+        Um ``AgentState`` totalmente inicializado, pronto para invocação do grafo.
     """
     return AgentState(
         original_query=query,
