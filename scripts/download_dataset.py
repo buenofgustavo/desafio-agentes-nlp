@@ -1,3 +1,4 @@
+"""Script para baixar e extrair o dataset do desafio."""
 import os
 import requests
 import zipfile
@@ -13,8 +14,9 @@ DOWNLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 ZIP_PATH = DOWNLOAD_FOLDER / "dados_grupo_estudos.zip"
 
 def download_dataset():
+    """Baixa o arquivo zip do dataset."""
     try:
-        logger.info("Downloading Dataset...")
+        logger.info("Baixando Dataset...")
         
         response = requests.get(DATASET_URL)
         response.raise_for_status()
@@ -22,12 +24,13 @@ def download_dataset():
         with open(ZIP_PATH, "wb") as f:
             f.write(response.content)
 
-        logger.info("Dowload completo!")
+        logger.info("Download completo!")
         
     except Exception as e:
         logger.error(f"Erro no download do arquivo zip: {e}")
         
 def extract_zip():
+    """Extrai o conteúdo do arquivo zip."""
     try:
         with zipfile.ZipFile(ZIP_PATH, "r") as zip_ref:
             zip_ref.extractall(DOWNLOAD_FOLDER)
@@ -37,10 +40,12 @@ def extract_zip():
         logger.error(f"Erro ao extrair arquivo zip: {e}")
         
 def main():
+    """Executa o download e a extração, removendo o zip ao final."""
     download_dataset()
     extract_zip()
     
-    os.remove(ZIP_PATH)
+    if ZIP_PATH.exists():
+        os.remove(ZIP_PATH)
     
 if __name__ == "__main__":
     main()

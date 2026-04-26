@@ -1,4 +1,4 @@
-"""Workflow para indexação dos documentos."""
+"""Fluxo para indexação dos documentos."""
 import os
 import sys
 import uuid
@@ -25,42 +25,40 @@ logger = LoggingService.setup_logger(__name__)
 load_dotenv()
 
 COLLECTION = os.getenv('QDRANT_COLLECTION', 'setor_eletrico')
-# Keep in sync with EMBEDDING_BATCH_SIZE in embedder.py (default 64).
 BATCH_SIZE = int(os.getenv('EMBEDDING_BATCH_SIZE', '64'))
-# Flush every 2 000 chunks: starts embedding sooner and caps peak RAM usage.
 
 
 def _generate_deterministic_id(chunk: ChildChunk) -> str:
-    """Generate a deterministic UUID based on chunk location to prevent duplicate insertions."""
+    """Gera um UUID determinístico baseado na localização do chunk para evitar duplicatas."""
     unique_str = f"{chunk.source_file}_{chunk.page}_{chunk.parent_index}_{chunk.child_index}"
     return str(uuid.UUID(hashlib.md5(unique_str.encode("utf-8")).hexdigest()))
 
 
 def run_indexing():
+    """Executa o pipeline completo de fragmentação e indexação vetorial."""
     start_time = time.time()
     
     logger.info('='*80)
     logger.info('INICIANDO PIPELINE DE CHUNKING + INDEXAÇÃO')
     logger.info('='*80)
     
-    # Step 1: Collection setup
+    # Passo 1: Configuração da coleção
     logger.info('📦 [1/4] Criando/Verificando coleção no Qdrant...')
     create_collection(COLLECTION)
     client = get_qdrant_client()
     logger.info(f'✓ Coleção "{COLLECTION}" pronta')
 
-    # Step 2: Load documents and identify already-indexed ones
+    # Passo 2: Carregar documentos e identificar os já indexados
     load_start = time.time()
     logger.info('📄 [2/4] Carregando documentos processados...')
     documents = load_all_processed()
     load_time = time.time() - load_start
     logger.info(f'✓ {len(documents)} documentos carregados em {load_time:.2f}s')
     
-    # Get already indexed source files
     logger.info('🔍 Identificando documentos já indexados...')
     indexed_files = set()
     try:
-        # Scroll through collection to get all source_file values
+        # Percorre a coleção para obter todos os valores de source_file
         indexed_point_count = 0
         scroll_result = client.scroll(
             collection_name=COLLECTION,
@@ -90,7 +88,7 @@ def run_indexing():
     except Exception as e:
         logger.warning(f'⚠️  Não foi possível recuperar arquivos já indexados: {e}. Processando todos.')
     
-    # Filter documents to process only new ones
+    # Filtra documentos para processar apenas os novos
     docs_to_process = [doc for doc in documents if doc.arquivo_origem not in indexed_files]
     docs_skipped = len(documents) - len(docs_to_process)
     
@@ -98,7 +96,6 @@ def run_indexing():
         logger.info(f'⏭️  {docs_skipped} documentos já indexados serão pulados')
         logger.info(f'📝 {len(docs_to_process)} documentos novos serão processados')
     
-    # Initialize processing
     chunker = DocumentChunker()
     
     chunk_buffer: List[ChildChunk] = []
@@ -132,7 +129,7 @@ def run_indexing():
             embed_time = time.time() - embed_start
             logger.debug(f'  Batch {batch_count}: ✓ Embeddings gerados em {embed_time:.2f}s')
             
-            # Prepare points for upsert
+            # Prepara pontos para o upsert
             points = []
             for chunk, vec in zip(batch, vectors):
                 payload = asdict(chunk)
@@ -144,7 +141,7 @@ def run_indexing():
                     )
                 )
             
-            # Upsert to Qdrant
+            # Upsert para o Qdrant
             try:
                 upsert_start = time.time()
                 client.upsert(collection_name=COLLECTION, points=points)
@@ -208,12 +205,11 @@ def run_indexing():
     logger.info('-'*80)
     logger.info(f'✓ Fase de chunking concluída em {chunk_phase_time:.2f}s')
     
-    # Final flush
     if chunk_buffer:
         logger.info('🔄 Sincronizando buffer final...')
         _flush_buffer()
 
-    # Summary
+    # Resumo
     logger.info('')
     logger.info('='*80)
     logger.info('📊 RESUMO DA INDEXAÇÃO')
