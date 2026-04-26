@@ -51,6 +51,13 @@ Para executar este projeto, sua máquina precisa ter instalado:
 
 ## 🚀 Guia Rápido de Execução (Passo a Passo)
 
+### Passo 0: Clonar o Repositório
+Abra o terminal e execute os comandos abaixo para clonar o projeto e entrar na pasta:
+```bash
+git clone https://github.com/buenofgustavo/desafio-agentes-nlp.git
+cd desafio-agentes-nlp
+```
+
 ### Passo 1: Configurar a Chave de API
 Na raiz desta pasta, existe um arquivo chamado `.env.example`.
 1. Renomeie este arquivo para `.env`.
@@ -62,7 +69,9 @@ ANTHROPIC_API_KEY=sk-ant-sua-chave-aqui...
 ### Passo 2: Baixar o Snapshot do Banco de Dados
 Para evitar o re-processamento de milhares de documentos, baixe o snapshot do Qdrant diretamente do nosso bucket no GCP:
 ```bash
-gcloud storage cp gs://aneel-raw-data/qdrant-snapshot/ qdrant_setup/
+mkdir -p qdrant_setup
+
+gcloud storage cp gs://aneel-raw-data/qdrant-snapshot/desafio-agentes-nlp.snapshot qdrant_setup/
 ```
 
 ### Passo 3: Iniciar a Infraestrutura
@@ -79,8 +88,14 @@ curl -X PUT 'http://localhost:6333/collections/setor_eletrico/snapshots/recover'
 -d '{"location": "file:///qdrant/snapshots/desafio-agentes-nlp.snapshot"}'
 ```
 
-### Passo 5: Acessar a Aplicação
-Com o banco populado e a API rodando, acesse a interface do usuário pelo seu navegador:
+### Passo 5 (Opcional): Construir o Índice BM25
+O sistema utiliza busca híbrida. Enquanto os embeddings densos estão no Qdrant, o índice BM25 é local e precisa ser gerado a partir dos dados restaurados:
+```bash
+docker exec -it rag_api_setor_eletrico python -m src.retrieval.bm25_retriever --rebuild
+```
+
+### Passo 6: Acessar a Aplicação
+Com o banco populado, o índice BM25 pronto e a API rodando, acesse a interface do usuário pelo seu navegador:
 👉 **[http://localhost:8501](http://localhost:8501)**
 
 ---

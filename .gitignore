@@ -1,6 +1,7 @@
 # Dados do desafio
 data/raw/
 data/processed/
+qdrant_setup/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

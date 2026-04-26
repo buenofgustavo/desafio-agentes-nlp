@@ -54,7 +54,10 @@ run-agent:
 # ===================== Qdrant snapshot =====================================
 sync-qdrant-snapshot:
 	@echo "Sincronizando snapshot do Qdrant com o GCP..."
-	time gcloud storage cp $(GCP_BUCKET_QDRANT_SNAPSHOT_PATH) qdrant_setup/
+
+	mkdir -p qdrant_setup
+
+	time gcloud storage cp $(GCP_BUCKET_QDRANT_SNAPSHOT_PATH)desafio-agentes-nlp.snapshot qdrant_setup/
 
 # (Privado, só para admins)
 upload-qdrant-snapshot:
