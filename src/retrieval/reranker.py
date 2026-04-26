@@ -1,10 +1,9 @@
-"""Cross-encoder reranker using ms-marco-multilingual-rerank-mmarco-v2.
+"""Reranker Cross-encoder usando cross-encoder/mmarco-mMiniLMv2-L12-H384-v1.
 
-The model is loaded **once at instantiation** (not per query) and scoring
-is done in a **single batched inference call** over all candidates, keeping
-GPU/CPU utilisation high and avoiding Python-level for-loops over the model.
+O modelo é carregado **uma vez na instanciação** e a pontuação é feita em uma
+**única chamada de inferência em lote** sobre todos os candidatos.
 
-Thread safety is ensured by an instance-level lock around ``model.predict()``.
+A thread safety é garantida por um lock em nível de instância ao redor de ``model.predict()``.
 """
 from __future__ import annotations
 
@@ -22,10 +21,10 @@ logger = LoggingService.setup_logger(__name__)
 
 
 class CrossEncoderReranker:
-    """Cross-encoder reranker for retrieval candidate lists.
+    """Reranker Cross-encoder para listas de candidatos de recuperação.
 
-    Loads the model once and uses batched inference for fast scoring.
-    Safe to call from multiple threads (lock protects ``predict()``).
+    Carrega o modelo uma vez e usa inferência em lote para pontuação rápida.
+    Seguro para ser chamado de múltiplas threads.
     """
 
     def __init__(
@@ -33,14 +32,12 @@ class CrossEncoderReranker:
         model_name: Optional[str] = None,
         top_k: Optional[int] = None,
     ) -> None:
-        """Load the cross-encoder model.
-
-        Auto-detects CUDA vs CPU for device placement.
+        """Carrega o modelo cross-encoder.
 
         Args:
-            model_name: HuggingFace model identifier. Defaults to
+            model_name: Identificador do modelo no HuggingFace. Padrão:
                 ``Constants.RERANKER_MODEL``.
-            top_k: Number of candidates to return after scoring. Defaults to
+            top_k: Número de candidatos a retornar após a pontuação. Padrão:
                 ``Constants.RERANKER_TOP_K``.
         """
         self._model_name: str = model_name or Constants.RERANKER_MODEL
@@ -51,29 +48,21 @@ class CrossEncoderReranker:
         self._model = CrossEncoder(self._model_name)
         logger.info("Cross-encoder carregado com sucesso.")
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def rerank(
         self,
         query: str,
         candidates: list[RetrievalResult],
     ) -> list[RetrievalResult]:
-        """Score and rerank candidates in a single batched inference call.
-
-        All (query, passage) pairs are scored together so hardware stays
-        as busy as possible. Results are sorted by ``rerank_score`` descending
-        and the top ``top_k`` are returned.
+        """Pontua e reordena candidatos em uma única chamada de inferência em lote.
 
         Args:
-            query: The original search query.
-            candidates: Candidate results to rerank (typically from
+            query: A query de busca original.
+            candidates: Resultados candidatos para reordenar (tipicamente do
                 ``HybridRetriever``).
 
         Returns:
-            Top ``top_k`` ``RetrievalResult`` objects with ``rerank_score``
-            populated, sorted descending. Returns ``[]`` for empty input.
+            Top ``top_k`` objetos ``RetrievalResult`` com ``rerank_score``
+            preenchido, ordenados decrescentemente.
         """
         if not candidates:
             return []

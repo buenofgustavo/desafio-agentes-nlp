@@ -1,8 +1,7 @@
-"""Dense semantic search using multilingual-e5-large embeddings and Qdrant.
+"""Busca semântica densa usando embeddings all-MiniLM-L6-v2 e Qdrant.
 
-This module wraps the existing Qdrant search infrastructure established in
-``rag_pipeline.py`` and exposes a clean, typed interface compatible with the
-Phase 2 hybrid pipeline.
+Este módulo expõe uma interface limpa e tipada para busca vetorial,
+compatível com o pipeline híbrido da Fase 2.
 """
 from __future__ import annotations
 
@@ -21,14 +20,13 @@ logger = LoggingService.setup_logger(__name__)
 
 
 class SemanticSearch:
-    """Dense retriever backed by Qdrant + multilingual-e5-large embeddings.
+    """Recuperador denso baseado em Qdrant + embeddings all-MiniLM-L6-v2.
 
-    Mirrors the retrieval logic in ``RAGService.retrieve()`` from
-    ``rag_pipeline.py``, but returns ``RetrievalResult`` objects so it can
-    be composed with ``HybridRetriever`` and ``CrossEncoderReranker``.
+    Retorna objetos ``RetrievalResult`` para que possa ser composto com
+    ``HybridRetriever`` e ``CrossEncoderReranker``.
 
-    The embedding model is loaded eagerly at construction time so the first
-    query does not incur the large model-loading overhead.
+    O modelo de embedding é carregado no momento da construção para evitar
+    latência na primeira consulta.
     """
 
     def __init__(
@@ -37,31 +35,26 @@ class SemanticSearch:
         collection: Optional[str] = None,
         top_k: Optional[int] = None,
     ) -> None:
-        """Initialize the dense retriever.
+        """Inicializa o recuperador denso.
 
         Args:
-            qdrant_client: Optional pre-built ``QdrantClient``. If *None*,
-                one is created from ``QDRANT_URL`` in config.
-            collection: Qdrant collection name. Defaults to
+            qdrant_client: ``QdrantClient`` pré-construído opcional. Se *None*,
+                um será criado a partir de ``QDRANT_URL`` na configuração.
+            collection: Nome da coleção no Qdrant. Padrão:
                 ``Constants.QDRANT_COLLECTION``.
-            top_k: Default number of results to return. Defaults to
+            top_k: Número padrão de resultados a retornar. Padrão:
                 ``Constants.DENSE_TOP_K``.
         """
         self._client: QdrantClient = qdrant_client or get_qdrant_client()
         self._collection: str = collection or Constants.QDRANT_COLLECTION
         self._top_k: int = top_k if top_k is not None else Constants.DENSE_TOP_K
 
-        # Eagerly load the embedding model — prevents cold-start latency on
-        # the first query call.
+        # Carrega o modelo de embedding antecipadamente — evita latência de cold-start
         get_embedding_model()
 
         logger.info(
             f"SemanticSearch inicializado (coleção='{self._collection}', top_k={self._top_k})"
         )
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def search(
         self,
@@ -70,24 +63,18 @@ class SemanticSearch:
         score_threshold: float = 0.0,
         apenas_vigentes: bool = False,
     ) -> list[RetrievalResult]:
-        """Run dense vector search against Qdrant.
-
-        Follows the same pattern as ``RAGService.retrieve()`` in
-        ``rag_pipeline.py``: embed the query with the ``query:`` prefix
-        required by multilingual-e5, then search with cosine similarity.
+        """Executa busca vetorial densa no Qdrant.
 
         Args:
-            query: The search query string (plain text, no prefix needed).
-            top_k: Max results to return. Overrides the instance default
-                when provided.
-            score_threshold: Minimum cosine similarity score (0–1).
-                Results below this threshold are discarded by Qdrant.
-            apenas_vigentes: If *True*, filters to documents whose ``situacao``
-                field equals ``'NÃO CONSTA REVOGAÇÃO EXPRESSA'``.
+            query: A string de busca (texto simples).
+            top_k: Máximo de resultados a retornar. Sobrescreve o padrão da instância.
+            score_threshold: Score mínimo de similaridade de cosseno (0–1).
+            apenas_vigentes: Se *True*, filtra documentos cujo campo ``situacao``
+                seja ``'NÃO CONSTA REVOGAÇÃO EXPRESSA'``.
 
         Returns:
-            Ranked list of ``RetrievalResult`` ordered by cosine score
-            descending, with ``source="dense"``.
+            Lista ranqueada de ``RetrievalResult`` ordenada por score de cosseno
+            decrescente, com ``source="dense"``.
         """
         k: int = top_k if top_k is not None else self._top_k
 
@@ -105,14 +92,15 @@ class SemanticSearch:
             )
 
         try:
-            hits = self._client.search(
+            response = self._client.query_points(
                 collection_name=self._collection,
-                query_vector=vector,
+                query=vector,
                 limit=k,
                 score_threshold=score_threshold,
                 query_filter=query_filter,
                 with_payload=True,
             )
+            hits = response.points
         except Exception as exc:
             logger.error(f"SemanticSearch: erro ao consultar Qdrant — {exc}")
             return []
@@ -120,8 +108,7 @@ class SemanticSearch:
         results: list[RetrievalResult] = []
         for hit in hits:
             payload: dict = hit.payload or {}
-            # Everything except 'text' becomes metadata (source_file, page,
-            # titulo, assunto, situacao, publicacao, ementa, etc.)
+            # Tudo exceto 'text' torna-se metadados
             metadata: dict = {k: v for k, v in payload.items() if k != "text"}
             results.append(
                 RetrievalResult(

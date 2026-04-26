@@ -1,1 +1,1 @@
-"""Retrieval layer — BM25 + Dense + RRF + Cross-encoder reranking."""
+"""Camada de recuperação — BM25 + Busca Densa + RRF + Reranking por Cross-encoder."""
