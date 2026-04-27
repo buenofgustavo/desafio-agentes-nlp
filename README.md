@@ -83,10 +83,19 @@ docker-compose up -d
 ### Passo 4: Restaurar o Banco de Dados Vetorial (Qdrant)
 Com os containers rodando e o snapshot presente na pasta `qdrant_setup/`, execute o comando abaixo para carregar os dados:
 ```bash
-curl -X PUT 'http://localhost:6333/collections/setor_eletrico/snapshots/recover' \
+curl -v -X PUT 'http://localhost:6333/collections/setor_eletrico/snapshots/recover' \
 -H 'Content-Type: application/json' \
 -d '{"location": "file:///qdrant/snapshots/desafio-agentes-nlp.snapshot"}'
 ```
+
+⏳ **Aviso: Este processo pode levar vários minutos.** O comando acima pode parecer que "travou" a tela — isto é normal. Para acompanhar o progresso em tempo real:
+
+1. Execute o comando curl acima **em um terminal** e deixe-o rodando.
+2. **Abra um segundo terminal** e execute:
+```bash
+docker logs -f qdrant_setor_eletrico
+```
+Assim você verá em tempo real o andamento da restauração do banco de dados.
 
 ### Passo 5 (Opcional): Construir o Índice BM25
 O sistema utiliza busca híbrida. Enquanto os embeddings densos estão no Qdrant, o índice BM25 é local e precisa ser gerado a partir dos dados restaurados:

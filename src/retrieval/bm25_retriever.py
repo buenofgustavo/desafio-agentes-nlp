@@ -13,9 +13,7 @@ from __future__ import annotations
 
 import argparse
 import pickle
-import re
-import gc
-import string
+from typing import Any, Iterable, Union
 from pathlib import Path
 from typing import Optional
 
@@ -49,8 +47,20 @@ def _get_stopwords() -> set[str]:
         logger.debug(f"Stopwords PT carregadas: {len(_PT_STOPWORDS)} termos")
     return _PT_STOPWORDS
 
+def _tokenize(text_or_texts: Union[str, Iterable[str]]) -> Any:
+    """Tokeniza com pré-processamento específico para português usando bm25s.
 
-_PUNCT_RE = re.compile(r"[" + re.escape(string.punctuation) + r"\d]+")
+    Args:
+        text_or_texts: Uma única string (para a query) ou uma lista de strings (para o corpus).
+
+    Returns:
+        O objeto tokenizado esperado por bm25s.BM25.
+    """
+    stopwords_pt = _get_stopwords()
+    
+    # bm25s.tokenize natively handles lowercasing, splitting, and stopword removal
+    return bm25s.tokenize(text_or_texts, stopwords=stopwords_pt)
+
 
 class BM25Retriever:
     """Recuperador esparso BM25 baseado em um índice persistido sobre chunks do Qdrant.
@@ -121,7 +131,7 @@ class BM25Retriever:
         
         logger.info("Tokenizando textos com bm25s...")
         stopwords_pt = _get_stopwords()
-        corpus_tokens = bm25s.tokenize(texts, stopwords=stopwords_pt)
+        corpus_tokens = _tokenize(texts)
 
         logger.info("Criando o índice de matrizes esparsas...")
         self._bm25 = bm25s.BM25()
