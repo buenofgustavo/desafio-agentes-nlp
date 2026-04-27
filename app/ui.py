@@ -81,7 +81,7 @@ if submit and question.strip():
 
                 # ── Resposta ──────────────────────────────────────────────
                 st.subheader("💬 Resposta")
-                st.info(data["answer"])
+                st.markdown(data["answer"])
 
                 # ── Métricas ──────────────────────────────────────────────
                 m1, m2, m3 = st.columns(3)
